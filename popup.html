@@ -3,105 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <title>Anon-Izzie — Excel/CSV Privacy Shield</title>
+    <link rel="stylesheet" href="tailwind-like.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="logo">
-                <img src="icons/icon48.png" alt="Anon-Izzie" class="logo-icon">
-                <h1>Anon-Izzie</h1>
+    <div class="extension-container">
+        <header class="bg-gradient-blue text-white py-8 px-6 text-center">
+            <div class="flex items-center justify-center gap-4 mb-2">
+                <img src="icons/inthemoney-ai-48.png" alt="Anon-Izzie" class="w-10 h-10 rounded-lg shadow-md">
+                <h1 class="text-3xl font-bold leading-tight">Anon-Izzie</h1>
             </div>
-            <p class="subtitle">Scrub sensitive payroll & equity data in seconds</p>
+            <p class="text-lg opacity-95 leading-normal">Scrub sensitive payroll & equity data in seconds</p>
         </header>
 
-        <main class="main-content">
-            <div class="upload-section">
-                <div class="upload-area" id="dropzone">
-                    <div class="upload-icon">📊</div>
-                    <h3>Drop your Excel/CSV file here</h3>
-                    <p>or click to browse</p>
-                    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden>
-                </div>
+        <main class="py-8 px-6">
+            <div class="upload-zone" id="dropzone" role="button" tabindex="0" aria-label="Upload Excel or CSV file" aria-describedby="upload-instructions">
+                <div class="text-6xl mb-5 block" aria-hidden="true">📊</div>
+                <h3 class="text-xl font-semibold mb-3 text-gray-900">Drop your Excel/CSV file here</h3>
+                <p id="upload-instructions" class="text-base text-gray-600 m-0">or click to browse</p>
+                <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden aria-label="Select Excel or CSV file">
             </div>
 
-            <div class="options-section" id="optionsSection" style="display: none;">
-                <h3>⚙️ Anonymization Options</h3>
+            <div class="mt-8 max-w-2xl mx-auto hidden" id="optionsSection">
+                <h3 class="text-xl font-semibold mb-6 text-gray-900 text-center">⚙️ Anonymization Options</h3>
                 
-                <div class="option-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="anonymizeNames" checked>
-                        <span class="checkmark"></span>
+                <div class="mb-6">
+                    <label class="flex items-center mb-3 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" id="anonymizeNames" checked aria-label="Anonymize employee names" class="mr-3 w-5 h-5 accent-blue-600">
+                        <span class="checkmark" aria-hidden="true"></span>
                         Anonymize Names
                     </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="anonymizeEmails" checked>
-                        <span class="checkmark"></span>
+                    <label class="flex items-center mb-3 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" id="anonymizeEmails" checked aria-label="Anonymize email addresses" class="mr-3 w-5 h-5 accent-blue-600">
+                        <span class="checkmark" aria-hidden="true"></span>
                         Anonymize Email Addresses
                     </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="maskPhone" checked>
-                        <span class="checkmark"></span>
+                    <label class="flex items-center mb-3 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" id="maskPhone" checked aria-label="Mask phone numbers" class="mr-3 w-5 h-5 accent-blue-600">
+                        <span class="checkmark" aria-hidden="true"></span>
                         Mask Phone Numbers
                     </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="maskSSN" checked>
-                        <span class="checkmark"></span>
+                    <label class="flex items-center mb-3 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" id="maskSSN" checked aria-label="Mask Social Security Numbers" class="mr-3 w-5 h-5 accent-blue-600">
+                        <span class="checkmark" aria-hidden="true"></span>
                         Mask SSNs
                     </label>
                 </div>
 
-                <div class="option-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="keepState2Letter" checked>
-                        <span class="checkmark"></span>
+                <div class="mb-6">
+                    <label class="flex items-center mb-3 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" id="keepState2Letter" checked aria-label="Keep 2-letter state codes for analysis" class="mr-3 w-5 h-5 accent-blue-600">
+                        <span class="checkmark" aria-hidden="true"></span>
                         Keep 2-Letter State Codes
                     </label>
                 </div>
 
-                <div class="option-group">
-                    <label class="checkbox-label">
-                      <input type="radio" name="mode" id="strictMode" checked>
+                <div class="mb-6">
+                    <label class="flex items-center mb-3 cursor-pointer text-sm text-gray-700" title="Completely removes all sensitive data. Use for demos, sharing with external parties, or when maximum privacy is required.">
+                      <input type="radio" name="mode" id="strictMode" checked aria-describedby="strictModeHelp" class="mr-3 w-5 h-5 accent-blue-600">
                       <span class="checkmark"></span>
                       Strict Mode 🔒 (wipe everything)
                     </label>
-                    <label class="checkbox-label">
-                      <input type="radio" name="mode" id="contextualMode">
+                    <label class="flex items-center mb-3 cursor-pointer text-sm text-gray-700" title="Keeps analysis-friendly values like date-shifted birthdays, salary ranges, and state codes. Use for internal analysis or AI training data.">
+                      <input type="radio" name="mode" id="contextualMode" aria-describedby="contextualModeHelp" class="mr-3 w-5 h-5 accent-blue-600">
                       <span class="checkmark"></span>
                       Contextual Mode 📊 (keep analysis-safe fields)
                     </label>
+                    <div class="mode-help hidden" id="strictModeHelp">
+                      <small class="block mt-2 px-3 py-2 bg-gray-50 border-l-4 border-blue-400 rounded text-xs text-gray-600 leading-normal">Completely removes all sensitive data. Use for demos, sharing with external parties, or when maximum privacy is required.</small>
+                    </div>
+                    <div class="mode-help hidden" id="contextualModeHelp">
+                      <small class="block mt-2 px-3 py-2 bg-gray-50 border-l-4 border-blue-400 rounded text-xs text-gray-600 leading-normal">Keeps analysis-friendly values like date-shifted birthdays, salary ranges, and state codes. Use for internal analysis or AI training data.</small>
+                    </div>
                   </div>
                   
-                <div class="button-group">
-                    <button id="anonymize-btn" class="btn btn-primary">🚀 Anonymize Data</button>
-                    <button id="resetBtn" class="btn btn-secondary">Reset</button>
+                <div class="flex gap-4 justify-center mt-8">
+                    <button id="anonymize-btn" class="btn-primary flex-1 max-w-48" aria-label="Start anonymization process" disabled>🚀 Anonymize Data</button>
+                    <button id="resetBtn" class="btn-secondary flex-1 max-w-48" aria-label="Reset and start over with a new file">Reset</button>
                 </div>
             </div>
 
-            <div class="log-section" id="log"></div>
+            <div class="mt-6 max-h-48 overflow-y-auto bg-gray-50 rounded-md p-4 text-sm leading-normal" id="log" role="log" aria-live="polite" aria-label="Processing status and results"></div>
 
-            <div class="progress-section" id="progressSection" style="display: none;">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
+            <div class="mt-6 hidden" id="progressSection" role="progressbar" aria-label="Anonymization progress">
+                <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-4">
+                    <div class="h-full bg-gradient-blue w-0 transition-all duration-300" id="progressFill" aria-hidden="true"></div>
                 </div>
-                <p class="progress-text" id="progressText">Processing...</p>
+                <p class="text-center text-gray-600 text-sm" id="progressText">Processing...</p>
             </div>
 
-            <div class="results-section" id="resultsSection" style="display: none;">
-                <h3>✅ Anonymization Complete!</h3>
-                <p class="result-info">Your file is clean, safe to share, and analysis-ready.</p>
-                <p class="result-summary" id="resultSummary"></p>
-                <div class="button-group">
-                    <button id="newFileBtn" class="btn btn-secondary">Process Another File</button>
+            <div class="text-center mt-6 hidden" id="resultsSection" role="status" aria-label="Anonymization results">
+                <h3 class="text-green-600 mb-4 text-lg font-semibold">✅ Anonymization Complete!</h3>
+                <p class="text-gray-600 mb-5 text-sm">Your file is clean, safe to share, and analysis-ready.</p>
+                <p class="text-sm text-gray-700 mb-6" id="resultSummary"></p>
+                <div class="flex justify-center">
+                    <button id="newFileBtn" class="btn-secondary max-w-48" aria-label="Process another file">Process Another File</button>
                 </div>
             </div>
         </main>
 
-        <footer class="footer">
-            <p>🔒 Runs 100% on your machine • No uploads, no leaks</p>
-            <p class="branding">
-                Built by <a href="https://inthemoney.ai" target="_blank" rel="noopener">
+        <footer class="bg-gray-50 py-5 px-6 text-center border-t border-gray-200">
+            <p class="text-xs text-gray-600 m-0 leading-normal">🔒 Runs 100% on your machine • No uploads, no leaks</p>
+            <p class="mt-2 text-xs text-gray-600 m-0">
+                Built by <a href="https://inthemoney.ai" target="_blank" rel="noopener" class="text-blue-600 no-underline font-medium transition-colors duration-200 hover:text-blue-800 hover:underline">
                     <strong>In the Money AI</strong>
                 </a>
             </p>
