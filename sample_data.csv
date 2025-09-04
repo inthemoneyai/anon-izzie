@@ -1,0 +1,6 @@
+Employee Name,Employee ID,Email,SSN,Phone,Salary,Department,Manager
+John Smith,EMP001,john.smith@company.com,123-45-6789,555-123-4567,75000,Engineering,Jane Doe
+Jane Doe,EMP002,jane.doe@company.com,987-65-4321,555-987-6543,85000,Engineering,Bob Johnson
+Bob Johnson,EMP003,bob.johnson@company.com,456-78-9012,555-456-7890,95000,Management,CEO
+Alice Brown,EMP004,alice.brown@company.com,789-01-2345,555-789-0123,65000,Marketing,Jane Doe
+Charlie Wilson,EMP005,charlie.wilson@company.com,234-56-7890,555-234-5678,70000,Sales,Bob Johnson

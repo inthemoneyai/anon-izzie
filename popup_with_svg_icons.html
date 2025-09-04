@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DataGuard - Excel Anonymizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="libs/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+        <h1>DataGuard</h1>
+      </div>
+      <p class="subtitle">Protect PII in Excel/CSV files • 100% local processing</p>
+    </header>
+
+    <main class="main">
+      <section id="dropzone" class="dropzone" tabindex="0">
+        <div class="dropzone-content">
+          <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p class="dropzone-text">
+            <strong>Drag & drop</strong> your Excel or CSV file here<br>
+            or <label class="browse-link"><input id="file-input" type="file" accept=".xlsx,.csv" hidden>browse files</label>
+          </p>
+          <p class="file-types">Supports .xlsx and .csv files</p>
+        </div>
+      </section>
+
+      <section class="options">
+        <h3>Anonymization Options</h3>
+        <div class="option-group">
+          <label class="option">
+            <input type="checkbox" id="maskSSN" checked>
+            <span class="checkmark"></span>
+            <span class="option-text">Mask SSNs (***-**-1234)</span>
+          </label>
+          <label class="option">
+            <input type="checkbox" id="maskPhone" checked>
+            <span class="checkmark"></span>
+            <span class="option-text">Mask phone numbers (***-***-1234)</span>
+          </label>
+          <label class="option">
+            <input type="checkbox" id="keepState2Letter" checked>
+            <span class="checkmark"></span>
+            <span class="option-text">Keep 2-letter state codes</span>
+          </label>
+        </div>
+      </section>
+
+      <section id="log" class="log"></section>
+
+      <footer class="footer">
+        <button id="anonymize-btn" class="btn-primary" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          Anonymize Data
+        </button>
+        <p class="privacy-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 22S8 18 8 13V6L12 4L16 6V13C16 18 12 22 12 22Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Files never leave your computer
+        </p>
+      </footer>
+    </main>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

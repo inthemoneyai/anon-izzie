@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Converter</title>
+</head>
+<body>
+    <canvas id="canvas16" width="16" height="16"></canvas>
+    <canvas id="canvas32" width="32" height="32"></canvas>
+    <canvas id="canvas48" width="48" height="48"></canvas>
+    <canvas id="canvas128" width="128" height="128"></canvas>
+    
+    <script>
+        const svgContent = `<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="lockGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f8fafc;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#shieldGradient)" stroke="#ffffff" stroke-width="4"/>
+  
+  <!-- Shield shape -->
+  <path d="M64 20 L44 30 L44 60 C44 80 64 100 64 100 C64 100 84 80 84 60 L84 30 Z" 
+        fill="url(#lockGradient)" 
+        stroke="#667eea" 
+        stroke-width="2"/>
+  
+  <!-- Lock icon -->
+  <rect x="56" y="50" width="16" height="12" rx="2" fill="#667eea"/>
+  <path d="M60 50 L60 45 C60 42 62 40 64 40 C66 40 68 42 68 45 L68 50" 
+        fill="none" 
+        stroke="#667eea" 
+        stroke-width="2" 
+        stroke-linecap="round"/>
+  
+  <!-- Checkmark -->
+  <path d="M58 56 L62 60 L70 52" 
+        fill="none" 
+        stroke="#ffffff" 
+        stroke-width="2" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+</svg>`;
+
+        function createIcon(size, canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            const img = new Image();
+            const svgBlob = new Blob([svgContent], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(svgBlob);
+            
+            img.onload = function() {
+                ctx.clearRect(0, 0, size, size);
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                // Download the canvas as PNG
+                canvas.toBlob(function(blob) {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `icon${size}.png`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                }, 'image/png');
+                
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        }
+        
+        // Create all icon sizes
+        setTimeout(() => createIcon(16, 'canvas16'), 100);
+        setTimeout(() => createIcon(32, 'canvas32'), 200);
+        setTimeout(() => createIcon(48, 'canvas48'), 300);
+        setTimeout(() => createIcon(128, 'canvas128'), 400);
+    </script>
+</body>
+</html>

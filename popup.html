@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataGuard - Excel Anonymizer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <img src="icons/icon48.png" alt="DataGuard" class="logo-icon">
+                <h1>DataGuard</h1>
+            </div>
+            <p class="subtitle">Excel Anonymizer</p>
+        </header>
+
+        <main class="main-content">
+            <div class="upload-section">
+                <div class="upload-area" id="dropzone">
+                    <div class="upload-icon">📊</div>
+                    <h3>Drop your Excel file here</h3>
+                    <p>or click to browse</p>
+                    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden>
+                </div>
+            </div>
+
+            <div class="options-section" id="optionsSection" style="display: none;">
+                <h3>Anonymization Options</h3>
+                
+                <div class="option-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="anonymizeNames" checked>
+                        <span class="checkmark"></span>
+                        Anonymize Names
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="anonymizeEmails" checked>
+                        <span class="checkmark"></span>
+                        Anonymize Email Addresses
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="maskPhone" checked>
+                        <span class="checkmark"></span>
+                        Mask phone (***-***-1234)
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="maskSSN" checked>
+                        <span class="checkmark"></span>
+                        Mask SSNs (***-**-1234)
+                    </label>
+                </div>
+
+                <div class="option-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="keepState2Letter" checked>
+                        <span class="checkmark"></span>
+                        Keep 2-letter state codes
+                    </label>
+                </div>
+
+                <div class="button-group">
+                    <button id="anonymize-btn" class="btn btn-primary">Anonymize Data</button>
+                    <button id="resetBtn" class="btn btn-secondary">Reset</button>
+                </div>
+            </div>
+
+            <div class="log-section" id="log"></div>
+
+            <div class="progress-section" id="progressSection" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="progress-text" id="progressText">Processing...</p>
+            </div>
+
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <h3>✅ Anonymization Complete!</h3>
+                <p class="result-info">Your data has been anonymized and is ready for download.</p>
+                <div class="button-group">
+                    <button id="downloadBtn" class="btn btn-primary">Download Anonymized File</button>
+                    <button id="newFileBtn" class="btn btn-secondary">Process Another File</button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>🔒 100% Local Processing • No Data Uploaded • Privacy Protected</p>
+            <p class="branding">
+                <a href="https://inthemoney.ai" target="_blank" rel="noopener">
+                    Brought to you by <strong>In the Money AI</strong>
+                </a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="libs/xlsx.full.min.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>

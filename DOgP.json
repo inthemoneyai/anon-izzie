@@ -2,10 +2,10 @@
   "manifest_version": 3,
   "name": "DataGuard - Excel Anonymizer",
   "version": "1.0.0",
-  "description": "Anonymize equity/HR spreadsheets in your browser. 100% local. No uploads. Protect PII from AI tools. Brought to you by In the Money AI.",
+  "description": "Anonymize equity/HR spreadsheets in your browser. 100% local. No uploads. Protect PII from AI tools.",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "DataGuard - Excel Anonymizer by In the Money AI"
+    "default_title": "DataGuard - Excel Anonymizer"
   },
   "icons": {
     "16": "icons/icon16.png",
