@@ -1,131 +1,115 @@
-# DataGuard - Excel Anonymizer
+# Anon-Izzie — Your Excel/CSV Privacy Shield 🛡️
 
-A Chrome extension that anonymizes Excel and CSV files containing sensitive HR/Finance data, keeping all processing 100% local on your machine.
+A Chrome extension that scrubs sensitive HR, payroll, and equity comp data from Excel/CSV files.  
+**100% local. Zero uploads. No creepy permissions.**
 
-**Brought to you by [In the Money AI](https://inthemoney.ai)** - Your trusted partner for AI-powered financial tools and data protection solutions.
+Built by [In the Money AI](https://inthemoney.ai) — the same nerds behind Izzie, your AI for equity and payroll.
+
+---
 
 ## 🛡️ Privacy First
 
-- **No network permissions** - Extension requires zero host permissions
-- **100% client-side processing** - Your data never leaves your computer
-- **No uploads** - All anonymization happens in your browser
-- **Reversible mapping** - Download anonymization map to reverse changes if needed
+- **Zero network permissions** — extension doesn’t even ask.
+- **100% client-side** — anonymization happens in your browser.
+- **No uploads, ever** — your data never leaves your machine.
+- **Reversible mapping** — CSV export shows exactly what got scrubbed and how.
 
-## 🎯 Perfect for HR/Finance Teams
+---
 
-Designed specifically for equity, payroll, and HR data containing:
+## 🎯 Who It’s For
+
+Perfect for anonymizing files before sharing, demoing, or running through AI tools. Handles:
+
 - Employee names and IDs
-- Social Security Numbers
-- Email addresses
-- Phone numbers
-- Addresses and personal information
-- Salary and compensation data
-- Grant and award information
+- SSNs and tax IDs
+- Emails and phone numbers
+- Home addresses, DOBs
+- Salary and comp data
+- Equity grant and award info
+- Bank, visa, demographics, transactions
+
+---
 
 ## 🚀 How to Use
 
-1. **Install the Extension**
-   - Open Chrome and go to `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked" and select this folder
+1. **Install the extension**
+    
+    - Go to `chrome://extensions/`
+    - Enable **Developer Mode**
+    - Click **Load unpacked** and select this folder
+        
+2. **Anonymize your data**
+    
+    - Click the Anon-Izzie extension icon
+    - Drop in your Excel/CSV file
+    - Choose anonymization options (Strict 🔒 vs Contextual 📊)
+    - Hit **Anonymize Data** 🚀
+    - Get two downloads:
+        - `YourFile_anonymized.xlsx`
+        - `YourFile_anonymization_map.csv`
 
-2. **Anonymize Your Data**
-   - Click the DataGuard extension icon
-   - Drag & drop your Excel (.xlsx) or CSV file
-   - Configure anonymization options
-   - Click "Anonymize Data"
-   - Download the anonymized file and mapping CSV
-
-## 📁 Project Structure
-
-```
-excel-anonymizer/
-├── manifest.json          # Extension configuration
-├── popup.html            # Extension popup interface
-├── popup.js              # Core anonymization logic
-├── styles.css            # Modern UI styling
-├── libs/
-│   └── xlsx.full.min.js  # SheetJS library for Excel processing
-├── icons/                # Extension icons (placeholder)
-└── README.md            # This file
-```
+---
 
 ## 🔧 Features
 
 ### Smart PII Detection
-Automatically detects common HR/Finance fields:
-- Employee names, IDs, and numbers
-- Email addresses and phone numbers
-- Social Security Numbers
-- Addresses and location data
-- Salary and compensation
-- Grant and award information
 
-### Flexible Anonymization
-- **Tokenization**: Replace names/IDs with consistent tokens (EMP0001, EID0001, etc.)
-- **Masking**: Partially mask SSNs (***-**-1234) and phone numbers
-- **Range masking**: Convert salaries to ranges ($50,000 - $75,000)
-- **Preservation**: Keep 2-letter state codes when desired
+- Header-based detection for HR/payroll/equity columns
+- Regex safety net (catches rogue SSNs/emails in “Notes” fields)
+- Detailed mapping includes detection method (header vs regex)
 
-### Reversible Mapping
-- Download complete anonymization map as CSV
-- Track original → anonymized value mappings
-- Includes sheet name, row, column, and both values
+### Flexible Modes
 
-## 🎨 Modern UI
+- **Strict Mode 🔒**: wipes everything sensitive (safe for demos).
+- **Contextual Mode 📊**: keeps analysis-friendly values (e.g. date-shifted DOBs, salary ranges, state codes).
 
-- Clean, professional interface
-- Drag & drop file support
-- Real-time processing feedback
-- Configurable anonymization options
-- Privacy-focused design
+### Audit-Friendly Mapping
+
+- CSV map logs original → anonymized values
+- Includes sheet, row, column, detection method
+- End-of-run summary in the UI:  
+    `📊 112 header, 🔎 3 regex → Total 115 fields scrubbed`
+
+### Smooth UI
+
+- Drag & drop Excel/CSV
+- Real-time log updates
+- Optional progress bar on big files
+- Reset button for quick fresh starts
+
+---
 
 ## 🔒 Security & Privacy
 
-- **Zero network access** - Extension has no host permissions
-- **Local processing only** - All data stays on your machine
-- **No telemetry** - No usage tracking or data collection
-- **Open source** - Full transparency in code
+- **No telemetry** — we don’t phone home.
+- **No host permissions** — nothing scary in the manifest.
+- **Open source** — full transparency.
+
+---
 
 ## 🛠️ Development
 
 ### Prerequisites
+
 - Chrome browser
-- Basic understanding of Chrome extensions
+- Zero patience for creepy SaaS “black box” anonymizers
+    
 
-### Installation for Development
-1. Clone or download this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode"
-4. Click "Load unpacked" and select the project folder
+### Install for Dev
 
-### File Structure
-- `manifest.json`: Extension configuration (MV3)
-- `popup.html`: User interface
-- `popup.js`: Core anonymization logic
-- `styles.css`: Modern CSS styling
-- `libs/xlsx.full.min.js`: SheetJS library for Excel processing
-
-## 📝 License
-
-This project is open source. Feel free to modify and distribute according to your needs.
-
-## 🤝 Contributing
-
-Contributions are welcome! Areas for improvement:
-- Additional PII detection patterns
-- More anonymization options
-- Better icon design
-- Enhanced UI/UX
-- Additional file format support
-
-## ⚠️ Important Notes
-
-- This tool is designed for legitimate data anonymization needs
-- Always ensure you have proper authorization to anonymize data
-- Keep the anonymization map secure if you need to reverse changes
-- Test with sample data before using with production files
+1. Clone/download this repo
+2. Go to `chrome://extensions/`
+3. Enable Developer Mode
+4. Load unpacked → select project folder
 
 ---
 
-**DataGuard** - Protecting sensitive data, one spreadsheet at a time. 🛡️
+## ⚠️ Notes
+
+- Only anonymize data you’re authorized to handle.
+- Keep the anonymization map secure if you might need to reverse.
+- Test with sample data first if you’re nervous.
+
+---
+
+**Anon-Izzie** — Because you shouldn’t need to sell your soul (or your employees’ PII) just to share a spreadsheet.

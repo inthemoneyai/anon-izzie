@@ -1,17 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "DataGuard - Excel Anonymizer",
+  "name": "Anon-Izzie — Excel/CSV Privacy Shield",
+  "short_name": "Anon-Izzie",
   "version": "1.0.0",
-  "description": "Anonymize equity/HR spreadsheets in your browser. 100% local. No uploads. Protect PII from AI tools. Brought to you by In the Money AI.",
+  "description": "Anonymize payroll & equity spreadsheets in your browser. 100% local. No uploads. Protect PII before sharing or feeding into AI tools. Built by In the Money AI.",
+  "type": "extension",
+  "offline_enabled": true,
+  "default_locale": "en",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "DataGuard - Excel Anonymizer by In the Money AI"
+    "default_title": "Anon-Izzie — Excel/CSV Privacy Shield"
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/inthemoney-ai-16.png",
+    "32": "icons/inthemoney-ai-32.png",
+    "48": "icons/inthemoney-ai-48.png",
+    "128": "icons/inthemoney-ai-128.png"
   },
   "permissions": [],
   "host_permissions": []

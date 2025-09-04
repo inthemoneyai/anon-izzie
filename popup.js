@@ -1,4 +1,4 @@
-// DataGuard - Excel Anonymizer
+// Anon-Izzie — Your Excel/CSV Privacy Shield
 // 100% client-side PII protection for HR/Finance data
 
 // PII detection patterns for equity/HR data
@@ -16,7 +16,12 @@ const PII_PATTERNS = {
   dob: ["dob", "date of birth", "birthdate", "birth date"],
   salary: ["salary", "compensation", "pay", "wage", "annual salary", "base salary"],
   department: ["department", "dept", "division", "team", "unit"],
-  manager: ["manager", "supervisor", "reporting manager", "direct manager"]
+  manager: ["manager", "supervisor", "reporting manager", "direct manager"],
+  bank: ["bank account", "account number", "routing", "iban", "swift"],
+  tax: ["itin", "ein", "tax id", "withholding", "allowances"],
+  visa: ["visa", "work permit", "passport"],
+  demographics: ["gender", "ethnicity", "marital status"],
+  transaction: ["transaction id", "espp id", "purchase id", "vest id"]
 };
 
 // Token counters for consistent anonymization
@@ -30,7 +35,21 @@ const TOKEN_COUNTERS = {
   ST: 0,     // States
   SAL: 0,    // Salaries
   DEP: 0,    // Departments
-  MGR: 0     // Managers
+  MGR: 0,    // Managers
+  BANK: 0,   // Bank accounts
+  TAX: 0,    // Tax IDs
+  VISA: 0,   // Visas
+  DEMO: 0,   // Demographics
+  TRANS: 0   // Transactions
+};
+
+// Add regex matchers for rogue PII
+const REGEX_PATTERNS = {
+  email: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  phone: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/,
+  ssn: /\b\d{3}-\d{2}-\d{4}\b/,
+  creditCard: /\b\d{4}[-\s]?(\d{4}[-\s]?){2}\d{4}\b/,
+  bank: /\b\d{8,17}\b/ // crude: 8–17 digits
 };
 
 // Global state
@@ -62,6 +81,14 @@ function extractDigits(str) {
 function generateToken(prefix) {
   TOKEN_COUNTERS[prefix] = (TOKEN_COUNTERS[prefix] || 0) + 1;
   return `${prefix}${String(TOKEN_COUNTERS[prefix]).padStart(4, "0")}`;
+}
+
+// Date shifting utility
+function shiftDate(value, days = 90) {
+  const d = new Date(value);
+  if (isNaN(d)) return "1900-01-01";
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
 }
 
 function maskSSN(value) {
@@ -153,6 +180,9 @@ function handleFileSelect(file) {
   $("#anonymize-btn").disabled = false;
   $("#log").innerHTML = "";
   
+  // Show the options section
+  $("#optionsSection").style.display = "block";
+  
   log(`📁 Selected: <strong>${fileName}</strong>`, "success");
   log(`📊 File size: ${(file.size / 1024).toFixed(1)} KB`, "info");
 }
@@ -218,13 +248,14 @@ async function anonymizeData() {
     }
     
     const headerRow = data[0];
-    const mapRows = [["SheetName", "Row", "ColumnHeader", "ColumnIndex", "OriginalValue", "AnonymizedValue"]];
+    const mapRows = [["SheetName", "Row", "ColumnHeader", "ColumnIndex", "OriginalValue", "AnonymizedValue", "DetectionMethod"]];
     
     // Get anonymization options
     const options = {
       maskSSN: $("#maskSSN").checked,
       maskPhone: $("#maskPhone").checked,
-      keepState2Letter: $("#keepState2Letter").checked
+      keepState2Letter: $("#keepState2Letter").checked,
+      mode: document.querySelector("input[name='mode']:checked").id
     };
     
     // Column-level dictionaries for consistent tokenization
@@ -232,7 +263,10 @@ async function anonymizeData() {
     
     log(`📋 Processing ${data.length - 1} rows with ${headerRow.length} columns...`, "info");
     log("🔒 Anonymizing sensitive data...", "info");
-    
+
+    let headerDetections = 0;
+    let regexDetections = 0;
+
     // Process each row
     for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
       const row = data[rowIndex];
@@ -244,14 +278,20 @@ async function anonymizeData() {
         const header = headerRow[colIndex];
         const dict = columnDictionaries[colIndex];
         
-        const addToMap = (original, anonymized) => {
+        const addToMap = (original, anonymized, method = "header") => {
+          if (method === "regex") {
+            regexDetections++;
+          } else {
+            headerDetections++;
+          }
           mapRows.push([
             sheetName,
             rowIndex + 1,
             header,
             colIndex + 1,
             String(original),
-            String(anonymized)
+            String(anonymized),
+            method
           ]);
         };
         
@@ -296,9 +336,14 @@ async function anonymizeData() {
           addToMap(originalValue, masked);
         }
         else if (isPIIField(header, "address")) {
-          const token = getOrCreateToken("ADR", originalValue);
-          row[colIndex] = token;
-          addToMap(originalValue, token);
+          if (options.mode === "strictMode") {
+            const token = getOrCreateToken("ADR", originalValue);
+            row[colIndex] = token;
+            addToMap(originalValue, token);
+          } else {
+            row[colIndex] = "Address"; // generic label
+            addToMap(originalValue, "Address");
+          }
         }
         else if (isPIIField(header, "city")) {
           const token = getOrCreateToken("CTY", originalValue);
@@ -308,12 +353,17 @@ async function anonymizeData() {
         else if (isPIIField(header, "state")) {
           const value = String(originalValue).trim().toUpperCase();
           if (options.keepState2Letter && /^[A-Z]{2}$/.test(value)) {
-            // Keep 2-letter state codes as-is
-            addToMap(originalValue, value);
+            addToMap(originalValue, value); // preserve
           } else {
-            const token = getOrCreateToken("ST", originalValue);
-            row[colIndex] = token;
-            addToMap(originalValue, token);
+            if (options.mode === "strictMode") {
+              const token = getOrCreateToken("ST", originalValue);
+              row[colIndex] = token;
+              addToMap(originalValue, token);
+            } else {
+              // Contextual: keep visible but anonymize long-form
+              row[colIndex] = value.length > 2 ? "State" : value;
+              addToMap(originalValue, row[colIndex]);
+            }
           }
         }
         else if (isPIIField(header, "zip")) {
@@ -326,13 +376,24 @@ async function anonymizeData() {
           addToMap(originalValue, masked);
         }
         else if (isPIIField(header, "dob")) {
-          row[colIndex] = "1900-01-01";
-          addToMap(originalValue, "1900-01-01");
+          if (options.mode === "strictMode") {
+            row[colIndex] = "1900-01-01"; // wipe
+            addToMap(originalValue, "1900-01-01");
+          } else {
+            const shifted = shiftDate(originalValue, 90); // keep relative age
+            row[colIndex] = shifted;
+            addToMap(originalValue, shifted);
+          }
         }
         else if (isPIIField(header, "salary")) {
-          const masked = maskSalary(originalValue);
-          row[colIndex] = masked;
-          addToMap(originalValue, masked);
+          if (options.mode === "strictMode") {
+            row[colIndex] = "***,***"; // nuke exact comp
+            addToMap(originalValue, "***,***");
+          } else {
+            const masked = maskSalary(originalValue); // bucket/range
+            row[colIndex] = masked;
+            addToMap(originalValue, masked);
+          }
         }
         else if (isPIIField(header, "department")) {
           const token = getOrCreateToken("DEP", originalValue);
@@ -344,14 +405,85 @@ async function anonymizeData() {
           row[colIndex] = token;
           addToMap(originalValue, token);
         }
-        // Other fields are left unchanged
+        else if (isPIIField(header, "bank")) {
+          const token = getOrCreateToken("BANK", originalValue);
+          row[colIndex] = token;
+          addToMap(originalValue, token);
+        }
+        else if (isPIIField(header, "tax")) {
+          const token = getOrCreateToken("TAX", originalValue);
+          row[colIndex] = token;
+          addToMap(originalValue, token);
+        }
+        else if (isPIIField(header, "visa")) {
+          const token = getOrCreateToken("VISA", originalValue);
+          row[colIndex] = token;
+          addToMap(originalValue, token);
+        }
+        else if (isPIIField(header, "demographics")) {
+          const token = getOrCreateToken("DEMO", originalValue);
+          row[colIndex] = token;
+          addToMap(originalValue, token);
+        }
+        else if (isPIIField(header, "transaction")) {
+          const token = getOrCreateToken("TRANS", originalValue);
+          row[colIndex] = token;
+          addToMap(originalValue, token);
+        }
+        else if (typeof originalValue === "string") {
+          if (REGEX_PATTERNS.email.test(originalValue)) {
+            const masked = `user${String(++TOKEN_COUNTERS.EML).padStart(4, "0")}@example.invalid`;
+            row[colIndex] = masked;
+            addToMap(originalValue, masked, "regex");
+          } else if (REGEX_PATTERNS.phone.test(originalValue)) {
+            const masked = maskPhone(originalValue);
+            row[colIndex] = masked;
+            addToMap(originalValue, masked, "regex");
+          } else if (REGEX_PATTERNS.ssn.test(originalValue)) {
+            const masked = maskSSN(originalValue);
+            row[colIndex] = masked;
+            addToMap(originalValue, masked, "regex");
+          } else if (REGEX_PATTERNS.creditCard.test(originalValue)) {
+            row[colIndex] = "****-****-****-1234";
+            addToMap(originalValue, row[colIndex], "regex");
+          } else if (REGEX_PATTERNS.bank.test(originalValue)) {
+            const normalizedHeader = normalizeHeader(header);
+            if (
+              normalizedHeader.includes("bank") ||
+              normalizedHeader.includes("account") ||
+              normalizedHeader.includes("routing") ||
+              normalizedHeader.includes("iban")
+            ) {
+              const token = getOrCreateToken("BANK", originalValue);
+              row[colIndex] = token;
+              addToMap(originalValue, token, "regex");
+            }
+          }          
+        }
       }
       
       data[rowIndex] = row;
+      
+      if (rowIndex % 100 === 0) {
+        const percent = Math.round((rowIndex / data.length) * 100);
+        $("#progressSection").style.display = "block";
+        $("#progressFill").style.width = percent + "%";
+        $("#progressText").textContent = `Processing... ${percent}%`;
+      }      
     }
-    
+
+    log(`📊 ${headerDetections} header`, "info");
+    log(`🔎 ${regexDetections} regex`, "info");
+    log(`📈 Total ${headerDetections + regexDetections} fields scrubbed`, "info");    
     log("📝 Generating anonymized file...", "info");
     
+    // Update results summary in UI
+    const summaryText = `📊 ${headerDetections} header, 🔎 ${regexDetections} regex → Total ${headerDetections + regexDetections} fields scrubbed`;
+    $("#resultSummary").textContent = summaryText;
+
+    // Show results section
+    $("#resultsSection").style.display = "block";
+
     // Create anonymized workbook
     const anonymizedWorksheet = XLSX.utils.aoa_to_sheet(data);
     const anonymizedWorkbook = XLSX.utils.book_new();
@@ -369,7 +501,7 @@ async function anonymizeData() {
     // Generate filenames
     const baseName = fileName.replace(/(\.xlsx|\.csv)?$/i, "");
     const anonymizedFileName = `${baseName}_anonymized.xlsx`;
-    const mappingFileName = "anonymization_map.csv";
+    const mappingFileName = `${baseName}_anonymization_map.csv`;
     
     // Download files
     downloadFile(anonymizedFileName, new Blob([anonymizedXlsx], { 
@@ -380,7 +512,7 @@ async function anonymizeData() {
       type: "text/csv;charset=utf-8" 
     }));
     
-    log("✅ Anonymization complete!", "success");
+    log("🎉 File anonymized successfully — results ready below!", "success");
     log(`📥 Downloaded: <strong>${anonymizedFileName}</strong>`, "success");
     log(`📥 Downloaded: <strong>${mappingFileName}</strong>`, "success");
     log(`📊 Processed ${mapRows.length - 1} anonymized values`, "info");
@@ -407,7 +539,18 @@ function init() {
   setupDragAndDrop();
   
   // Initial log message
-  log("🛡️ DataGuard ready - Drop your Excel/CSV file to begin", "info");
+  log("🛡️ Anon-Izzie ready - Drop your Excel/CSV file to begin", "info");
+
+  // Reset button handler
+  $("#resetBtn").addEventListener("click", () => {
+    currentFile = null;
+    fileName = null;
+    $("#file-input").value = "";
+    $("#optionsSection").style.display = "none";
+    $("#resultsSection").style.display = "none";
+    $("#log").innerHTML = "";
+    log("🛡️ Ready for a new file — drop Excel/CSV to begin", "info");
+  });
 }
 
 // Start the extension when DOM is loaded
