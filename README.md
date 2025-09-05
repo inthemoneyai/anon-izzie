@@ -33,10 +33,11 @@ Perfect for anonymizing files before sharing, demoing, or running through AI too
 ## 🚀 How to Use
 
 1. **Install the extension**
-    
-    - Go to `chrome://extensions/`
-    - Enable **Developer Mode**
-    - Click **Load unpacked** and select this folder
+   - From the [Chrome Web Store](https://chrome.google.com/webstore/detail/anon-izzie/XXXX) *(link will go live after publish)*
+   - Or load manually:
+     - Go to `chrome://extensions/`
+     - Enable **Developer Mode**
+     - Click **Load unpacked** and select this folder
         
 2. **Anonymize your data**
     
@@ -74,7 +75,7 @@ Perfect for anonymizing files before sharing, demoing, or running through AI too
 
 - Drag & drop Excel/CSV
 - Real-time log updates
-- Optional progress bar on big files
+- Fast anonymization — usually done in seconds
 - Reset button for quick fresh starts
 
 ---
@@ -93,7 +94,6 @@ Perfect for anonymizing files before sharing, demoing, or running through AI too
 
 - Chrome browser
 - Zero patience for creepy SaaS “black box” anonymizers
-    
 
 ### Install for Dev
 
@@ -106,10 +106,24 @@ Perfect for anonymizing files before sharing, demoing, or running through AI too
 
 ## ⚠️ Notes
 
-- Only anonymize data you’re authorized to handle.
-- Keep the anonymization map secure if you might need to reverse.
-- Test with sample data first if you’re nervous.
+- This tool is provided “as is.”  
+- Not legal, tax, or compliance advice — validate anonymized outputs before sharing.  
+- No anonymizer is perfect: check your file before you send it, and keep the mapping CSV private and secure if you plan to reverse.  
+- The original file is never modified, only a copy is generated.  
 
 ---
 
-**Anon-Izzie** — Because you shouldn’t need to sell your soul (or your employees’ PII) just to share a spreadsheet.
+🐿️ Fun fact: Anon-Izzie anonymizes spreadsheets, not your browser history.  
+🤖 She doesn’t talk to the cloud. She barely talks to her coworkers.
+
+---
+
+## 👩‍💻 About
+Built by [In the Money AI](https://inthemoney.ai)  
+Want AI to actually answer your equity/payroll questions?  
+Check out [Izzie →](https://inthemoney.ai)
+
+---
+
+## 📄 License
+MIT License © 2025 Good Work People LLC

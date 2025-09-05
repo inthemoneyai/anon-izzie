@@ -30,6 +30,20 @@ const PII_PATTERNS = {
   shares: ["shares", "number of shares", "shares granted", "shares_vested", "shares_exercised"]
 };
 
+// Friendly names for detected field types
+const FRIENDLY_NAMES = {
+  ssn: "Social Security Number",
+  taxId: "Tax ID (EIN/ITIN/etc.)",
+  taxValue: "Tax Amount/Withholding",
+  empId: "Employee ID",
+  grantId: "Grant/Award ID",
+  dob: "Date of Birth",
+  fmv: "Fair Market Value",
+  exercisePrice: "Exercise Price",
+  vestDate: "Vesting Date",
+  grantDate: "Grant Date",
+};
+
 // Token counters for consistent anonymization
 const TOKEN_COUNTERS = {
   EMP: 0,    // Employee names
@@ -285,10 +299,11 @@ function createFieldSelectionUI() {
     const fieldTypes = document.createElement("div");
     fieldTypes.className = `text-xs ${hasPII ? 'text-gray-500' : 'text-gray-400'}`;
     if (field.detectedTypes.length > 0) {
-      fieldTypes.textContent = `Detected: ${field.detectedTypes.join(", ")}`;
+      const labels = field.detectedTypes.map(t => FRIENDLY_NAMES[t] || t);
+      fieldTypes.textContent = `Detected: ${labels.join(", ")}`;
     } else {
-      fieldTypes.textContent = "No PII detected - not recommended";
-    }
+      fieldTypes.textContent = "No PII detected";
+    }    
     
     fieldInfo.appendChild(fieldName);
     fieldInfo.appendChild(fieldTypes);
@@ -1033,13 +1048,6 @@ async function anonymizeData() {
             }
         
             data[rowIndex] = row;
-            
-            if (rowIndex % 100 === 0) {
-              const percent = Math.round((rowIndex / data.length) * 100);
-              $("#progressSection").style.display = "block";
-              $("#progressFill").style.width = percent + "%";
-              $("#progressText").textContent = `Processing... ${percent}%`;
-            }
 
           } catch (rowError) {
             log(`⚠️ Error processing row ${rowIndex + 1}: ${rowError.message}`, "info");
