@@ -388,3 +388,16 @@ input[type="radio"]:checked + .checkmark + .mode-help {
         max-width: 100%;
     }
 }
+
+.chip {
+    display: inline-block;
+    padding: 2px 8px;
+    margin: 2px 4px 0 0;
+    border-radius: 9999px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+  }
+  

@@ -14,7 +14,7 @@ const PII_PATTERNS = {
   zip: ["zip", "zip code", "postal", "postal code", "zipcode"],
   phone: ["phone", "phone number", "telephone", "cell", "mobile", "work phone", "home phone"],
   dob: ["dob", "date of birth", "birthdate", "birth date"],
-  salary: ["salary", "compensation", "pay", "wage", "annual salary", "base salary", "total value", "total_value", "value", "amount", "dollar", "dollars"],
+  compensation: ["salary", "compensation", "pay", "wage", "annual salary", "base salary", "total value", "total_value", "value", "amount", "dollar", "dollars"],
   department: ["department", "dept", "division", "team", "unit"],
   manager: ["manager", "supervisor", "reporting manager", "direct manager"],
   bank: ["bank account", "account number", "routing", "iban", "swift"],
@@ -32,17 +32,92 @@ const PII_PATTERNS = {
 
 // Friendly names for detected field types
 const FRIENDLY_NAMES = {
-  ssn: "Social Security Number",
-  taxId: "Tax ID (EIN/ITIN/etc.)",
-  taxValue: "Tax Amount/Withholding",
+  name: "Employee Name",
   empId: "Employee ID",
   grantId: "Grant/Award ID",
+  email: "Email Address",
+  ssn: "Social Security Number",
+  address: "Home Address",
+  city: "City",
+  state: "State/Province",
+  zip: "ZIP/Postal Code",
+  phone: "Phone Number",
   dob: "Date of Birth",
-  fmv: "Fair Market Value",
-  exercisePrice: "Exercise Price",
-  vestDate: "Vesting Date",
+  compensation: "Compensation",
+  department: "Department",
+  manager: "Manager/Supervisor",
+  bank: "Bank Account",
+  taxId: "Tax ID (EIN/ITIN/etc.)",
+  taxValue: "Tax Amount / Withholding",
+  visa: "Visa/Work Permit",
+  demographics: "Demographics",
+  transaction: "Transaction ID",
   grantDate: "Grant Date",
+  vestDate: "Vesting Date",
+  exercisePrice: "Exercise Price",
+  fmv: "Fair Market Value",
+  shares: "Shares",
 };
+
+// Order matters for display (IDs first, then amounts, etc.)
+const DISPLAY_PRIORITY = [
+  "ssn", "taxId", "empId", "grantId",
+  "name", "compensation", "taxValue",
+  "email", "phone", "dob",
+  "address", "city", "state", "zip",
+  "bank", "visa", "demographics",
+  "transaction", "grantDate", "vestDate",
+  "exercisePrice", "fmv", "shares",
+  "department", "manager"
+];
+
+// Escape regex safely
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeHeader(s) {
+  return s.toLowerCase().replace(/[_\-]+/g, " ").trim();
+}
+
+// Safer match logic: prevents "SS" matching "address"
+function headerMatchesPattern(header, pattern) {
+  const h = normalizeHeader(header);
+  const p = normalizeHeader(pattern);
+
+  // Extremely short tokens must be exact
+  if (p.length <= 2) return h === p;
+
+  // Whole word/phrase match
+  const rx = new RegExp(`\\b${escapeRegExp(p)}\\b`, "i");
+  if (rx.test(h)) return true;
+
+  // Allow contains only if multi-word pattern
+  return h.includes(p) && p.split(" ").length > 1;
+}
+
+function getFriendlyLabelsSorted(typeKeys) {
+  const unique = [...new Set(typeKeys)];
+  const byPriority = (a, b) =>
+    DISPLAY_PRIORITY.indexOf(a) - DISPLAY_PRIORITY.indexOf(b);
+  const sortedKeys = unique.sort(byPriority);
+  return sortedKeys.map(k => FRIENDLY_NAMES[k] || k);
+}
+
+// Remove noisy overlaps so one field doesn't get tagged as 3+ things
+function suppressNoisyOverlaps(detectedTypes) {
+  const set = new Set(detectedTypes);
+
+  // If SSN is detected, don't also show taxValue
+  if (set.has("ssn")) set.delete("taxValue");
+
+  // If Employee ID is detected, don't also show Name
+  if (set.has("empId")) set.delete("name");
+
+  // Add more suppression rules here as you see odd combos
+
+  return [...set];
+}
 
 // Token counters for consistent anonymization
 const TOKEN_COUNTERS = {
@@ -104,15 +179,9 @@ function normalizeHeader(header) {
 }
 
 function isPIIField(header, piiType) {
-  const normalized = normalizeHeader(header);
-  return PII_PATTERNS[piiType].some(pattern => {
-    // More precise matching - require exact word boundaries for common words
-    if (pattern === "status" || pattern === "employee") {
-      return normalized === pattern || normalized === `${pattern}s`;
-    }
-    // For other patterns, use the original logic
-    return normalized.includes(pattern) || pattern.includes(normalized);
-  });
+  return PII_PATTERNS[piiType].some(pattern =>
+    headerMatchesPattern(header, pattern)
+  );
 }
 
 function extractDigits(str) {
@@ -122,6 +191,12 @@ function extractDigits(str) {
 function generateToken(prefix) {
   TOKEN_COUNTERS[prefix] = (TOKEN_COUNTERS[prefix] || 0) + 1;
   return `${prefix}${String(TOKEN_COUNTERS[prefix]).padStart(4, "0")}`;
+}
+
+function getFriendlyLabels(types) {
+  // Deduplicate + map to friendly names
+  const unique = [...new Set(types)];
+  return unique.map(t => FRIENDLY_NAMES[t] || t);
 }
 
 // Date shifting utility
@@ -185,7 +260,7 @@ function analyzeFields(headerRow) {
     // Check each PII type with priority order
     const priorityOrder = [
       'name', 'empId', 'grantId',
-      'ssn', 'taxId', 'taxValue', 'salary', 'email', 'phone', 'address', 'bank',
+      'ssn', 'taxId', 'taxValue', 'compensation', 'email', 'phone', 'address', 'bank',
       'dob', 'visa', 'demographics', 'transaction', 'grantDate',
       'vestDate', 'exercisePrice', 'fmv', 'shares', 'department',
       'manager', 'city', 'state', 'zip'
@@ -278,6 +353,21 @@ function updateMasterCheckbox() {
   }
 }
 
+function headerMatchesPattern(header, pattern) {
+  const h = normalizeHeader(header);
+  const p = normalizeHeader(pattern);
+
+  // For very short patterns (<=2 chars), require exact match
+  if (p.length <= 2) return h === p;
+
+  // Word boundary match (whole word/phrase)
+  const rx = new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  if (rx.test(h)) return true;
+
+  // Fallback: allow phrase contains, but only if multi-word
+  return h.includes(p) && p.split(" ").length > 1;
+}
+
 function createFieldSelectionUI() {
   const fieldList = $("#fieldList");
   if (!fieldList) return;
@@ -299,8 +389,11 @@ function createFieldSelectionUI() {
     const fieldTypes = document.createElement("div");
     fieldTypes.className = `text-xs ${hasPII ? 'text-gray-500' : 'text-gray-400'}`;
     if (field.detectedTypes.length > 0) {
-      const labels = field.detectedTypes.map(t => FRIENDLY_NAMES[t] || t);
-      fieldTypes.textContent = `Detected: ${labels.join(", ")}`;
+      const suppressed = suppressNoisyOverlaps(field.detectedTypes);
+      const labels = getFriendlyLabelsSorted(suppressed);
+      fieldTypes.innerHTML = `Detected: ${labels
+        .map(l => `<span class="chip">${l}</span>`)
+        .join(" ")}`;
     } else {
       fieldTypes.textContent = "No PII detected";
     }    
@@ -829,7 +922,7 @@ async function anonymizeData() {
                 addToMap(originalValue, shifted);
               }
             }
-            else if (isPIIField(header, "salary")) {
+            else if (isPIIField(header, "compensation")) {
               if (options.mode === "strictMode") {
                 row[colIndex] = "***,***"; // nuke exact comp
                 addToMap(originalValue, "***,***");
