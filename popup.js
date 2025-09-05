@@ -7,21 +7,27 @@ const PII_PATTERNS = {
   empId: ["employee id", "person number", "emp id", "worker id", "person id", "employee number", "staff id"],
   grantId: ["grant id", "grant #", "grant number", "award id", "award number", "award #", "option id", "option number"],
   email: ["email", "e-mail", "email address", "work email", "corporate email"],
-  ssn: ["ssn", "social security", "social security number", "ss#", "ss #"],
+  ssn: ["ssn", "social security number", "ss#", "ss #"],
   address: ["address", "address line 1", "address1", "address line1", "street address", "home address"],
   city: ["city", "municipality"],
-  state: ["state", "st", "province", "region"],
+  state: ["state", "province", "region"],
   zip: ["zip", "zip code", "postal", "postal code", "zipcode"],
   phone: ["phone", "phone number", "telephone", "cell", "mobile", "work phone", "home phone"],
   dob: ["dob", "date of birth", "birthdate", "birth date"],
-  salary: ["salary", "compensation", "pay", "wage", "annual salary", "base salary"],
+  salary: ["salary", "compensation", "pay", "wage", "annual salary", "base salary", "total value", "total_value", "value", "amount", "dollar", "dollars"],
   department: ["department", "dept", "division", "team", "unit"],
   manager: ["manager", "supervisor", "reporting manager", "direct manager"],
   bank: ["bank account", "account number", "routing", "iban", "swift"],
-  tax: ["itin", "ein", "tax id", "withholding", "allowances"],
+  taxId: ["itin", "ein", "tax id", "taxid", "federal tax id", "state tax id"],
+  taxValue: ["withholding", "allowances", "fica", "ss", "medicare", "federal", "state", "social security", "tax value", "taxable wages", "deductions"],
   visa: ["visa", "work permit", "passport"],
-  demographics: ["gender", "ethnicity", "marital status"],
-  transaction: ["transaction id", "espp id", "purchase id", "vest id"]
+  demographics: ["gender", "ethnicity", "marital status", "marital_status"],
+  transaction: ["transaction id", "espp id", "purchase id", "vest id"],
+  grantDate: ["grant date", "grant_date", "award date", "award_date", "option grant date"],
+  vestDate: ["vest date", "vest_date", "vesting date", "vesting_date", "exercise date", "exercise_date"],
+  exercisePrice: ["exercise price", "exercise_price", "strike price", "strike_price", "option price"],
+  fmv: ["fmv", "fair market value", "fair_market_value", "market value", "market_value"],
+  shares: ["shares", "number of shares", "shares granted", "shares_vested", "shares_exercised"]
 };
 
 // Token counters for consistent anonymization
@@ -40,7 +46,13 @@ const TOKEN_COUNTERS = {
   TAX: 0,    // Tax IDs
   VISA: 0,   // Visas
   DEMO: 0,   // Demographics
-  TRANS: 0   // Transactions
+  TRANS: 0,  // Transactions
+  GRANT: 0,  // Grant dates
+  VEST: 0,   // Vesting dates
+  PRICE: 0,  // Exercise prices
+  FMV: 0,    // Fair market values
+  SHARES: 0, // Share counts
+  GEN: 0     // Generic fields
 };
 
 // Add regex matchers for rogue PII
@@ -55,6 +67,16 @@ const REGEX_PATTERNS = {
 // Global state
 let currentFile = null;
 let fileName = null;
+let detectedFields = [];
+let fieldSelections = {};
+
+// Session-only state management (no persistent storage)
+function clearSession() {
+  currentFile = null;
+  fileName = null;
+  detectedFields = [];
+  fieldSelections = {};
+}
 
 // DOM elements
 const $ = (selector) => document.querySelector(selector);
@@ -69,9 +91,14 @@ function normalizeHeader(header) {
 
 function isPIIField(header, piiType) {
   const normalized = normalizeHeader(header);
-  return PII_PATTERNS[piiType].some(pattern => 
-    normalized.includes(pattern) || pattern.includes(normalized)
-  );
+  return PII_PATTERNS[piiType].some(pattern => {
+    // More precise matching - require exact word boundaries for common words
+    if (pattern === "status" || pattern === "employee") {
+      return normalized === pattern || normalized === `${pattern}s`;
+    }
+    // For other patterns, use the original logic
+    return normalized.includes(pattern) || pattern.includes(normalized);
+  });
 }
 
 function extractDigits(str) {
@@ -127,6 +154,165 @@ function csvEscape(value) {
   return /[",\n\r]/.test(sanitized) ? `"${sanitized.replace(/"/g, '""')}"` : sanitized;
 }
 
+function analyzeFields(headerRow) {
+  detectedFields = [];
+  fieldSelections = {};
+  
+  headerRow.forEach((header, index) => {
+    if (!header || header.trim() === "") return;
+    
+    const field = {
+      index: index,
+      name: header,
+      detectedTypes: [],
+      suggestedAction: "keep"
+    };
+    
+    // Check each PII type with priority order
+    const priorityOrder = [
+      'name', 'empId', 'grantId',
+      'ssn', 'taxId', 'taxValue', 'salary', 'email', 'phone', 'address', 'bank',
+      'dob', 'visa', 'demographics', 'transaction', 'grantDate',
+      'vestDate', 'exercisePrice', 'fmv', 'shares', 'department',
+      'manager', 'city', 'state', 'zip'
+    ];    
+    
+    priorityOrder.forEach(piiType => {
+      if (PII_PATTERNS[piiType] && isPIIField(header, piiType)) {
+        field.detectedTypes.push(piiType);
+      }
+    });
+    
+    // Determine suggested action
+    if (field.detectedTypes.length > 0) {
+      field.suggestedAction = "anonymize";
+      fieldSelections[`field_${index}`] = true; // Default to selected for PII fields
+    } else {
+      field.suggestedAction = "keep";
+      fieldSelections[`field_${index}`] = false; // Default to not selected for non-PII fields
+    }
+    
+    detectedFields.push(field);
+  });
+  
+  return detectedFields;
+}
+
+async function analyzeFileFields() {
+  try {
+    if (!currentFile) return;
+    
+    const arrayBuffer = await readFileAsArrayBuffer(currentFile);
+    const workbook = XLSX.read(arrayBuffer, { 
+      type: "array",
+      cellDates: true,
+      cellNF: false,
+      cellText: false
+    });
+    
+    if (!workbook || !workbook.SheetNames || !workbook.SheetNames.length) {
+      log("❌ Could not read file structure", "error");
+      return;
+    }
+    
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet, { 
+      header: 1, 
+      defval: "",
+      raw: false,
+      dateNF: 'yyyy-mm-dd'
+    });
+    
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      log("❌ No data found in file", "error");
+      return;
+    }
+    
+    const headerRow = data[0];
+    analyzeFields(headerRow);
+    createFieldSelectionUI();
+    
+    // Show field selection interface
+    $("#fieldSelectionSection").classList.remove("hidden");
+    $("#optionsSection").classList.remove("hidden");
+    
+    log(`✅ Found ${detectedFields.length} fields - select what to anonymize`, "success");
+    
+  } catch (error) {
+    log(`❌ Error analyzing file: ${error.message}`, "error");
+    console.error("Field analysis error:", error);
+  }
+}
+
+function updateMasterCheckbox() {
+  const selectAllMaster = $("#selectAllMaster");
+  if (!selectAllMaster) return;
+  
+  const totalFields = detectedFields.length;
+  const selectedFields = Object.values(fieldSelections).filter(Boolean).length;
+  
+  if (selectedFields === 0) {
+    selectAllMaster.checked = false;
+    selectAllMaster.indeterminate = false;
+  } else if (selectedFields === totalFields) {
+    selectAllMaster.checked = true;
+    selectAllMaster.indeterminate = false;
+  } else {
+    selectAllMaster.checked = false;
+    selectAllMaster.indeterminate = true;
+  }
+}
+
+function createFieldSelectionUI() {
+  const fieldList = $("#fieldList");
+  if (!fieldList) return;
+  
+  fieldList.innerHTML = "";
+  
+  detectedFields.forEach(field => {
+    const hasPII = field.detectedTypes.length > 0;
+    const div = document.createElement("div");
+    div.className = `flex items-center justify-between p-2 rounded text-xs ${hasPII ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`;
+    
+    const fieldInfo = document.createElement("div");
+    fieldInfo.className = "flex-1";
+    
+    const fieldName = document.createElement("div");
+    fieldName.className = `font-medium ${hasPII ? 'text-gray-800' : 'text-gray-500'}`;
+    fieldName.textContent = field.name;
+    
+    const fieldTypes = document.createElement("div");
+    fieldTypes.className = `text-xs ${hasPII ? 'text-gray-500' : 'text-gray-400'}`;
+    if (field.detectedTypes.length > 0) {
+      fieldTypes.textContent = `Detected: ${field.detectedTypes.join(", ")}`;
+    } else {
+      fieldTypes.textContent = "No PII detected - not recommended";
+    }
+    
+    fieldInfo.appendChild(fieldName);
+    fieldInfo.appendChild(fieldTypes);
+    
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.id = `field_${field.index}`;
+    checkbox.className = `w-3 h-3 accent-blue-600 ${hasPII ? '' : 'opacity-50'}`;
+    checkbox.checked = fieldSelections[`field_${field.index}`];
+    
+    checkbox.addEventListener("change", (e) => {
+      fieldSelections[`field_${field.index}`] = e.target.checked;
+      updateMasterCheckbox();
+    });
+    
+    div.appendChild(fieldInfo);
+    div.appendChild(checkbox);
+    fieldList.appendChild(div);
+  });
+  
+  // Update master checkbox after creating all fields
+  updateMasterCheckbox();
+}
+
 function log(message, type = "info") {
   try {
     const logElement = $("#log");
@@ -137,7 +323,7 @@ function log(message, type = "info") {
     
     const div = document.createElement("div");
     div.className = type;
-    // Sanitize message to prevent XSS
+    // Sanitize message to prevent XSS - use textContent for security per Chrome extension security documentation
     div.textContent = message;
     logElement.appendChild(div);
     logElement.scrollTop = logElement.scrollHeight;
@@ -283,11 +469,20 @@ function handleFileSelect(file) {
   $("#anonymize-btn").disabled = false;
   $("#log").textContent = "";
   
-  // Show the options section
-  $("#optionsSection").style.display = "block";
+  // Hide dropzone and show file info card
+  $("#dropzone").style.display = "none";
+  $("#fileInfoCard").classList.remove("hidden");
+  $("#selectedFileName").textContent = fileName;
+  $("#selectedFileSize").textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
   
-  log(`📁 Selected: <strong>${fileName}</strong>`, "success");
-  log(`📊 File size: ${(file.size / 1024).toFixed(1)} KB`, "info");
+  // Show logs section immediately
+  $("#logSection").style.display = "block";
+  
+  // Analyze fields and show selection interface immediately
+  log("🔍 Analyzing fields...", "info");
+  
+  // We need to read the file to analyze fields
+  analyzeFileFields();
   
   // Check for potential issues
   if (file.size < 100) {
@@ -308,11 +503,13 @@ function setupDragAndDrop() {
     return;
   }
   
+  console.log("Setting up drag and drop for element:", dropzone);
+  
   ["dragenter", "dragover"].forEach(eventName => {
     dropzone.addEventListener(eventName, (e) => {
       e.preventDefault();
       e.stopPropagation();
-      dropzone.classList.add("hover");
+      dropzone.classList.add("dragover");
     });
   });
   
@@ -320,11 +517,12 @@ function setupDragAndDrop() {
     dropzone.addEventListener(eventName, (e) => {
       e.preventDefault();
       e.stopPropagation();
-      dropzone.classList.remove("hover");
+      dropzone.classList.remove("dragover");
     });
   });
   
   dropzone.addEventListener("drop", (e) => {
+    console.log("Drop event triggered", e);
     try {
       if (!e.dataTransfer || !e.dataTransfer.files) {
         log("❌ No files detected in drop", "error");
@@ -375,7 +573,7 @@ async function anonymizeData() {
   anonymizeBtn.disabled = true;
   
   try {
-    log("🔄 Reading file...", "info");
+    log("🔄 Processing file...", "info");
     
     // Check if XLSX library is loaded
     if (typeof XLSX === 'undefined') {
@@ -387,8 +585,6 @@ async function anonymizeData() {
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
       throw new Error("File appears to be empty or corrupted");
     }
-    
-    log("📖 Parsing Excel/CSV data...", "info");
     
     let workbook;
     try {
@@ -418,7 +614,7 @@ async function anonymizeData() {
       throw new Error(`Sheet "${sheetName}" could not be accessed`);
     }
     
-    log(`📋 Processing sheet: "${sheetName}"`, "info");
+    // No need to log sheet name - not important to user
     
     let data;
     try {
@@ -470,9 +666,6 @@ async function anonymizeData() {
       }
       
       options = {
-        maskSSN: $("#maskSSN") ? $("#maskSSN").checked : true,
-        maskPhone: $("#maskPhone") ? $("#maskPhone").checked : true,
-        keepState2Letter: $("#keepState2Letter") ? $("#keepState2Letter").checked : true,
         mode: modeElement.id
       };
     } catch (optionError) {
@@ -482,8 +675,7 @@ async function anonymizeData() {
     // Column-level dictionaries for consistent tokenization
     const columnDictionaries = headerRow.map(() => new Map());
     
-    log(`📋 Processing ${data.length - 1} rows with ${headerRow.length} columns...`, "info");
-    log("🔒 Anonymizing sensitive data...", "info");
+    log(`📊 Processing ${data.length - 1} rows, ${headerRow.length} columns...`, "info");
 
     let headerDetections = 0;
     let regexDetections = 0;
@@ -505,6 +697,14 @@ async function anonymizeData() {
         
             const header = headerRow[colIndex];
             const dict = columnDictionaries[colIndex];
+            
+            // Check if this field should be anonymized based on user selection
+            const shouldAnonymize = fieldSelections[`field_${colIndex}`];
+            if (!shouldAnonymize) continue;
+            
+            // Check if this is a non-PII field that user selected
+            const field = detectedFields.find(f => f.index === colIndex);
+            const isNonPIIField = field && field.detectedTypes.length === 0;
             
             const addToMap = (original, anonymized, method = "header") => {
               if (method === "regex") {
@@ -559,7 +759,7 @@ async function anonymizeData() {
               addToMap(originalValue, row[colIndex]);
             }
             else if (isPIIField(header, "ssn")) {
-              const masked = options.maskSSN ? maskSSN(originalValue) : getOrCreateToken("EID", originalValue);
+              const masked = maskSSN(originalValue);
               row[colIndex] = masked;
               addToMap(originalValue, masked);
             }
@@ -580,7 +780,8 @@ async function anonymizeData() {
             }
             else if (isPIIField(header, "state")) {
               const value = String(originalValue).trim().toUpperCase();
-              if (options.keepState2Letter && /^[A-Z]{2}$/.test(value)) {
+              if (options.mode === "contextualMode" && /^[A-Z]{2}$/.test(value)) {
+                row[colIndex] = value;
                 addToMap(originalValue, value); // preserve
               } else {
                 if (options.mode === "strictMode") {
@@ -599,7 +800,7 @@ async function anonymizeData() {
               addToMap(originalValue, "00000");
             }
             else if (isPIIField(header, "phone")) {
-              const masked = options.maskPhone ? maskPhone(originalValue) : getOrCreateToken("EMP", originalValue);
+              const masked = maskPhone(originalValue);
               row[colIndex] = masked;
               addToMap(originalValue, masked);
             }
@@ -638,10 +839,29 @@ async function anonymizeData() {
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "tax")) {
+            // Tax IDs (EIN, ITIN, Tax ID)
+            else if (isPIIField(header, "taxId")) {
               const token = getOrCreateToken("TAX", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
+            }
+            // Tax values (withholding %, FICA, etc.)
+            else if (isPIIField(header, "taxValue")) {
+              if (options.mode === "strictMode") {
+                row[colIndex] = "***"; 
+                addToMap(originalValue, "***");
+              } else {
+                const num = parseFloat(originalValue.toString().replace(/[,$%]/g, ""));
+                if (!isNaN(num)) {
+                  // bucket to keep shape but hide exact
+                  const rounded = Math.round(num / 100) * 100;
+                  row[colIndex] = rounded.toString();
+                  addToMap(originalValue, rounded.toString());
+                } else {
+                  row[colIndex] = "***";
+                  addToMap(originalValue, "***");
+                }
+              }
             }
             else if (isPIIField(header, "visa")) {
               const token = getOrCreateToken("VISA", originalValue);
@@ -657,6 +877,77 @@ async function anonymizeData() {
               const token = getOrCreateToken("TRANS", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
+            }
+            else if (isPIIField(header, "grantDate")) {
+              if (options.mode === "strictMode") {
+                row[colIndex] = "1900-01-01"; // wipe
+                addToMap(originalValue, "1900-01-01");
+              } else {
+                const shifted = shiftDate(originalValue, 30); // shift by 30 days
+                row[colIndex] = shifted;
+                addToMap(originalValue, shifted);
+              }
+            }
+            else if (isPIIField(header, "vestDate")) {
+              if (options.mode === "strictMode") {
+                row[colIndex] = "1900-01-01"; // wipe
+                addToMap(originalValue, "1900-01-01");
+              } else {
+                const shifted = shiftDate(originalValue, 30); // shift by 30 days
+                row[colIndex] = shifted;
+                addToMap(originalValue, shifted);
+              }
+            }
+            else if (isPIIField(header, "exercisePrice")) {
+              if (options.mode === "strictMode") {
+                row[colIndex] = "***.**"; // wipe
+                addToMap(originalValue, "***.**");
+              } else {
+                // Round to nearest dollar for analysis
+                const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
+                if (!isNaN(num)) {
+                  const rounded = Math.round(num);
+                  row[colIndex] = rounded.toFixed(2);
+                  addToMap(originalValue, rounded.toFixed(2));
+                } else {
+                  row[colIndex] = "***.**";
+                  addToMap(originalValue, "***.**");
+                }
+              }
+            }
+            else if (isPIIField(header, "fmv")) {
+              if (options.mode === "strictMode") {
+                row[colIndex] = "***.**"; // wipe
+                addToMap(originalValue, "***.**");
+              } else {
+                // Round to nearest dollar for analysis
+                const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
+                if (!isNaN(num)) {
+                  const rounded = Math.round(num);
+                  row[colIndex] = rounded.toFixed(2);
+                  addToMap(originalValue, rounded.toFixed(2));
+                } else {
+                  row[colIndex] = "***.**";
+                  addToMap(originalValue, "***.**");
+                }
+              }
+            }
+            else if (isPIIField(header, "shares")) {
+              if (options.mode === "strictMode") {
+                row[colIndex] = "***"; // wipe
+                addToMap(originalValue, "***");
+              } else {
+                // Round to nearest 100 for analysis
+                const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
+                if (!isNaN(num)) {
+                  const rounded = Math.round(num / 100) * 100;
+                  row[colIndex] = rounded.toString();
+                  addToMap(originalValue, rounded.toString());
+                } else {
+                  row[colIndex] = "***";
+                  addToMap(originalValue, "***");
+                }
+              }
             }
             else if (typeof originalValue === "string") {
               try {
@@ -693,6 +984,53 @@ async function anonymizeData() {
                 continue;
               }
             }
+            
+            // Handle non-PII fields that user selected for anonymization
+            if (isNonPIIField) {
+              try {
+                const value = String(originalValue).trim();
+                
+                // Try to detect what type of data this might be
+                if (!isNaN(value) && !isNaN(parseFloat(value))) {
+                  // Numeric data - round or mask based on mode
+                  if (options.mode === "strictMode") {
+                    row[colIndex] = "***";
+                    addToMap(originalValue, "***", "generic");
+                  } else {
+                    // Round to nearest 10 for analysis
+                    const num = parseFloat(value);
+                    const rounded = Math.round(num / 10) * 10;
+                    row[colIndex] = rounded.toString();
+                    addToMap(originalValue, rounded.toString(), "generic");
+                  }
+                } else if (value.includes("@") && value.includes(".")) {
+                  // Looks like email - mask it
+                  const masked = `user${String(++TOKEN_COUNTERS.EML).padStart(4, "0")}@example.invalid`;
+                  row[colIndex] = masked;
+                  addToMap(originalValue, masked, "generic");
+                } else if (/^\d{4}-\d{2}-\d{2}/.test(value) || /^\d{2}\/\d{2}\/\d{4}/.test(value)) {
+                  // Looks like date - shift it
+                  if (options.mode === "strictMode") {
+                    row[colIndex] = "1900-01-01";
+                    addToMap(originalValue, "1900-01-01", "generic");
+                  } else {
+                    const shifted = shiftDate(originalValue, 30);
+                    row[colIndex] = shifted;
+                    addToMap(originalValue, shifted, "generic");
+                  }
+                } else {
+                  // Text data - tokenize it
+                  const token = getOrCreateToken("GEN", originalValue);
+                  row[colIndex] = token;
+                  addToMap(originalValue, token, "generic");
+                }
+              } catch (genericError) {
+                // Fallback - just tokenize everything
+                const token = getOrCreateToken("GEN", originalValue);
+                row[colIndex] = token;
+                addToMap(originalValue, token, "generic");
+              }
+            }
         
             data[rowIndex] = row;
             
@@ -708,16 +1046,22 @@ async function anonymizeData() {
             continue;
           }
         }
+      } catch (rowError) {
+        log(`⚠️ Error processing row ${rowIndex + 1}: ${rowError.message}`, "info");
+        continue;
+      }
+    }
 
-    log(`📊 ${headerDetections} header`, "info");
-    log(`🔎 ${regexDetections} regex`, "info");
-    log(`📈 Total ${headerDetections + regexDetections} fields scrubbed`, "info");    
-    log("📝 Generating anonymized file...", "info");
+    log(`🔒 Anonymized ${headerDetections + regexDetections} sensitive fields`, "success");
     
     // Update results summary in UI
     const summaryText = `📊 ${headerDetections} header, 🔎 ${regexDetections} regex → Total ${headerDetections + regexDetections} fields scrubbed`;
     $("#resultSummary").textContent = summaryText;
 
+    // Hide field selection during processing to make room for logs
+    $("#fieldSelectionSection").classList.add("hidden");
+    $("#optionsSection").classList.add("hidden");
+    
     // Show results section
     $("#resultsSection").style.display = "block";
 
@@ -765,7 +1109,7 @@ async function anonymizeData() {
       downloadFile(anonymizedFileName, new Blob([anonymizedXlsx], { 
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
       }));
-      log(`📥 Downloaded: <strong>${anonymizedFileName}</strong>`, "success");
+      log(`📥 Downloaded: ${anonymizedFileName}`, "success");
     } catch (downloadError) {
       throw new Error(`Failed to download anonymized file: ${downloadError.message}`);
     }
@@ -774,21 +1118,17 @@ async function anonymizeData() {
       downloadFile(mappingFileName, new Blob([mappingCsv], { 
         type: "text/csv;charset=utf-8" 
       }));
-      log(`📥 Downloaded: <strong>${mappingFileName}</strong>`, "success");
+      log(`📥 Downloaded: ${mappingFileName}`, "success");
     } catch (downloadError) {
       log(`⚠️ Failed to download mapping file: ${downloadError.message}`, "error");
       // Don't throw here - main file was successful
     }
     
-    log("🎉 File anonymized successfully — results ready below!", "success");
-    log(`📥 Downloaded: <strong>${anonymizedFileName}</strong>`, "success");
-    log(`📥 Downloaded: <strong>${mappingFileName}</strong>`, "success");
-    log(`📊 Processed ${mapRows.length - 1} anonymized values`, "info");
+    log("🎉 Success! Files downloaded", "success");
     
-      } catch (error) {
-        log(`❌ Error: ${error.message}`, "error");
-        console.error("Anonymization error:", error);
-      }}
+  } catch (error) {
+    log(`❌ Error: ${error.message}`, "error");
+    console.error("Anonymization error:", error);
   } finally {
     anonymizeBtn.disabled = false;
   }
@@ -838,23 +1178,40 @@ function init() {
     setupDragAndDrop();
     
     // Initial log message
-    log("🛡️ Anon-Izzie ready - Drop your Excel/CSV file to begin", "info");
+    log("🛡️ Ready - Drop file to begin", "info");
+    log("💡 Tip: Keep this popup open while working - it closes when you click elsewhere", "info");
     
     // Reset button handler with error handling
     const resetBtn = $("#resetBtn");
     if (resetBtn) {
       resetBtn.addEventListener("click", () => {
         try {
-          currentFile = null;
-          fileName = null;
+          clearSession();
           $("#file-input").value = "";
+          $("#dropzone").style.display = "block";
+          $("#fileInfoCard").classList.add("hidden");
           $("#optionsSection").style.display = "none";
+          $("#fieldSelectionSection").classList.add("hidden");
           $("#resultsSection").style.display = "none";
+          $("#logSection").style.display = "none";
           $("#log").textContent = "";
-          log("🛡️ Ready for a new file — drop Excel/CSV to begin", "info");
+          log("🛡️ Ready - Drop file to begin", "info");
         } catch (error) {
           log(`❌ Error resetting: ${error.message}`, "error");
           console.error("Reset error:", error);
+        }
+      });
+    }
+
+    // Change file button handler
+    const changeFileBtn = $("#changeFileBtn");
+    if (changeFileBtn) {
+      changeFileBtn.addEventListener("click", () => {
+        try {
+          $("#file-input").click();
+        } catch (error) {
+          log(`❌ Error opening file dialog: ${error.message}`, "error");
+          console.error("Change file error:", error);
         }
       });
     }
@@ -890,6 +1247,60 @@ function init() {
         } catch (error) {
           console.error("Contextual mode toggle error:", error);
         }
+      });
+    }
+
+    // Re-process button handler
+    const reprocessBtn = $("#reprocessBtn");
+    if (reprocessBtn) {
+      reprocessBtn.addEventListener("click", () => {
+        try {
+          // Hide results, show field selection again
+          $("#resultsSection").style.display = "none";
+          $("#fieldSelectionSection").classList.remove("hidden");
+          $("#optionsSection").classList.remove("hidden");
+          $("#log").textContent = "";
+          log("🔄 Adjust your selections and click Anonymize to re-process", "info");
+        } catch (error) {
+          log(`❌ Error preparing re-process: ${error.message}`, "error");
+          console.error("Re-process error:", error);
+        }
+      });
+    }
+
+    // Process Another File button handler
+    const newFileBtn = $("#newFileBtn");
+    if (newFileBtn) {
+      newFileBtn.addEventListener("click", () => {
+        try {
+          currentFile = null;
+          fileName = null;
+          $("#file-input").value = "";
+          $("#dropzone").style.display = "block";
+          $("#fileInfoCard").classList.add("hidden");
+          $("#optionsSection").style.display = "none";
+          $("#fieldSelectionSection").classList.add("hidden");
+          $("#resultsSection").style.display = "none";
+          $("#logSection").style.display = "none";
+          $("#log").textContent = "";
+          log("🛡️ Ready - Drop file to begin", "info");
+        } catch (error) {
+          log(`❌ Error resetting: ${error.message}`, "error");
+          console.error("New file error:", error);
+        }
+      });
+    }
+
+    // Master Select All checkbox
+    const selectAllMaster = $("#selectAllMaster");
+    if (selectAllMaster) {
+      selectAllMaster.addEventListener("change", (e) => {
+        const isChecked = e.target.checked;
+        detectedFields.forEach(field => {
+          fieldSelections[`field_${field.index}`] = isChecked;
+          const checkbox = document.getElementById(`field_${field.index}`);
+          if (checkbox) checkbox.checked = isChecked;
+        });
       });
     }
 
