@@ -2,18 +2,18 @@
   "manifest_version": 3,
   "name": "Anon-Izzie — Excel/CSV Privacy Shield",
   "short_name": "Anon-Izzie",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Scrub payroll & equity spreadsheets in seconds. 100% local, no uploads. Protect PII before you share or feed it to AI. Built by In the Money AI.",
   "offline_enabled": true,
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup.html",
     "default_title": "Anon-Izzie — Excel/CSV Privacy Shield"
   },
   "icons": {
-    "16": "icons/inthemoney-ai-16.png",
-    "32": "icons/inthemoney-ai-32.png",
-    "48": "icons/inthemoney-ai-48.png",
-    "128": "icons/inthemoney-ai-128.png"
+    "16": "assets/icons/inthemoney-ai-16.png",
+    "32": "assets/icons/inthemoney-ai-32.png",
+    "48": "assets/icons/inthemoney-ai-48.png",
+    "128": "assets/icons/inthemoney-ai-128.png"
   },
   "permissions": [],
   "host_permissions": [],

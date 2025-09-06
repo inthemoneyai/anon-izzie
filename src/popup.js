@@ -19,7 +19,7 @@ const PII_PATTERNS = {
   manager: ["manager", "supervisor", "reporting manager", "direct manager"],
   bank: ["bank account", "account number", "routing", "iban", "swift"],
   taxId: ["itin", "ein", "tax id", "taxid", "federal tax id", "state tax id"],
-  taxValue: ["withholding", "allowances", "fica", "ss", "medicare", "federal", "state", "social security", "tax value", "taxable wages", "deductions"],
+  taxValue: ["withholding", "allowances", "fica", "ss", "medicare", "federal", "state withholding", "local withholding", "local tax", "state tax", "social security", "tax value", "taxable wages", "deductions", "state deductions"],
   visa: ["visa", "work permit", "passport"],
   demographics: ["gender", "ethnicity", "marital status", "marital_status"],
   transaction: ["transaction id", "espp id", "purchase id", "vest id"],
@@ -76,25 +76,9 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function normalizeHeader(s) {
-  return s.toLowerCase().replace(/[_\-]+/g, " ").trim();
-}
+// Duplicate function removed - using the more robust version below
 
-// Safer match logic: prevents "SS" matching "address"
-function headerMatchesPattern(header, pattern) {
-  const h = normalizeHeader(header);
-  const p = normalizeHeader(pattern);
-
-  // Extremely short tokens must be exact
-  if (p.length <= 2) return h === p;
-
-  // Whole word/phrase match
-  const rx = new RegExp(`\\b${escapeRegExp(p)}\\b`, "i");
-  if (rx.test(h)) return true;
-
-  // Allow contains only if multi-word pattern
-  return h.includes(p) && p.split(" ").length > 1;
-}
+// Duplicate function removed - using the improved version below
 
 function getFriendlyLabelsSorted(typeKeys) {
   const unique = [...new Set(typeKeys)];
@@ -193,11 +177,7 @@ function generateToken(prefix) {
   return `${prefix}${String(TOKEN_COUNTERS[prefix]).padStart(4, "0")}`;
 }
 
-function getFriendlyLabels(types) {
-  // Deduplicate + map to friendly names
-  const unique = [...new Set(types)];
-  return unique.map(t => FRIENDLY_NAMES[t] || t);
-}
+// Unused function removed - only getFriendlyLabelsSorted() is used
 
 // Date shifting utility
 function shiftDate(value, days = 90) {
@@ -269,6 +249,10 @@ function analyzeFields(headerRow) {
     priorityOrder.forEach(piiType => {
       if (PII_PATTERNS[piiType] && isPIIField(header, piiType)) {
         field.detectedTypes.push(piiType);
+        // Debug logging for "State Withholding" issue
+        if (header.toLowerCase().includes("state") && header.toLowerCase().includes("withholding")) {
+          console.log(`Field "${header}" detected as ${piiType}`);
+        }
       }
     });
     
@@ -359,6 +343,14 @@ function headerMatchesPattern(header, pattern) {
 
   // For very short patterns (<=2 chars), require exact match
   if (p.length <= 2) return h === p;
+
+  // Special case: "state" should only match geographic state, not tax-related
+  if (p === "state") {
+    // Don't match if it's clearly tax-related
+    if (h.includes("withholding") || h.includes("tax") || h.includes("deduction")) {
+      return false;
+    }
+  }
 
   // Word boundary match (whole word/phrase)
   const rx = new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
@@ -578,13 +570,13 @@ function handleFileSelect(file) {
   $("#log").textContent = "";
   
   // Hide dropzone and show file info card
-  $("#dropzone").style.display = "none";
+  $("#dropzone").classList.add("hidden");
   $("#fileInfoCard").classList.remove("hidden");
   $("#selectedFileName").textContent = fileName;
   $("#selectedFileSize").textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
   
   // Show logs section immediately
-  $("#logSection").style.display = "block";
+  $("#logSection").classList.remove("hidden");
   
   // Analyze fields and show selection interface immediately
   log("🔍 Analyzing fields...", "info");
@@ -926,10 +918,21 @@ async function anonymizeData() {
               if (options.mode === "strictMode") {
                 row[colIndex] = "***,***"; // nuke exact comp
                 addToMap(originalValue, "***,***");
-              } else {
+              } else if (options.mode === "rangeMode") {
                 const masked = maskSalary(originalValue); // bucket/range
                 row[colIndex] = masked;
                 addToMap(originalValue, masked);
+              } else {
+                // Contextual mode: use consistent fake values like taxValue
+                const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
+                if (!isNaN(num)) {
+                  const rounded = Math.round(num / 100) * 100;
+                  row[colIndex] = rounded.toString();
+                  addToMap(originalValue, rounded.toString());
+                } else {
+                  row[colIndex] = "***,***";
+                  addToMap(originalValue, "***,***");
+                }
               }
             }
             else if (isPIIField(header, "department")) {
@@ -1164,7 +1167,7 @@ async function anonymizeData() {
     $("#optionsSection").classList.add("hidden");
     
     // Show results section
-    $("#resultsSection").style.display = "block";
+    $("#resultsSection").classList.remove("hidden");
 
     // Create anonymized workbook with error handling
     let anonymizedXlsx;
@@ -1280,7 +1283,7 @@ function init() {
     
     // Initial log message
     log("🛡️ Ready - Drop file to begin", "info");
-    log("💡 Tip: Keep this popup open while working - it closes when you click elsewhere", "info");
+    log("💡 Chrome closes this if you click away — a browser limit that helps protect your privacy.", "info");
     
     // Reset button handler with error handling
     const resetBtn = $("#resetBtn");
@@ -1289,12 +1292,12 @@ function init() {
         try {
           clearSession();
           $("#file-input").value = "";
-          $("#dropzone").style.display = "block";
+          $("#dropzone").classList.remove("hidden");
           $("#fileInfoCard").classList.add("hidden");
-          $("#optionsSection").style.display = "none";
+          $("#optionsSection").classList.add("hidden");
           $("#fieldSelectionSection").classList.add("hidden");
-          $("#resultsSection").style.display = "none";
-          $("#logSection").style.display = "none";
+          $("#resultsSection").classList.add("hidden");
+          $("#logSection").classList.remove("hidden");
           $("#log").textContent = "";
           log("🛡️ Ready - Drop file to begin", "info");
         } catch (error) {
@@ -1320,15 +1323,17 @@ function init() {
     // Mode help text toggle with error handling
     const strictMode = $("#strictMode");
     const contextualMode = $("#contextualMode");
+    const rangeMode = $("#rangeMode");
     
     if (strictMode) {
       strictMode.addEventListener("change", () => {
         try {
           if (strictMode.checked) {
-            const strictHelp = $("#strictModeHelp");
+            // Hide other help text if it exists
             const contextualHelp = $("#contextualModeHelp");
-            if (strictHelp) strictHelp.style.display = "block";
+            const rangeHelp = $("#rangeModeHelp");
             if (contextualHelp) contextualHelp.style.display = "none";
+            if (rangeHelp) rangeHelp.style.display = "none";
           }
         } catch (error) {
           console.error("Strict mode toggle error:", error);
@@ -1340,13 +1345,30 @@ function init() {
       contextualMode.addEventListener("change", () => {
         try {
           if (contextualMode.checked) {
+            // Hide other help text if it exists
             const strictHelp = $("#strictModeHelp");
-            const contextualHelp = $("#contextualModeHelp");
+            const rangeHelp = $("#rangeModeHelp");
             if (strictHelp) strictHelp.style.display = "none";
-            if (contextualHelp) contextualHelp.style.display = "block";
+            if (rangeHelp) rangeHelp.style.display = "none";
           }
         } catch (error) {
           console.error("Contextual mode toggle error:", error);
+        }
+      });
+    }
+
+    if (rangeMode) {
+      rangeMode.addEventListener("change", () => {
+        try {
+          if (rangeMode.checked) {
+            // Hide other help text if it exists
+            const strictHelp = $("#strictModeHelp");
+            const contextualHelp = $("#contextualModeHelp");
+            if (strictHelp) strictHelp.style.display = "none";
+            if (contextualHelp) contextualHelp.style.display = "none";
+          }
+        } catch (error) {
+          console.error("Range mode toggle error:", error);
         }
       });
     }
@@ -1357,7 +1379,7 @@ function init() {
       reprocessBtn.addEventListener("click", () => {
         try {
           // Hide results, show field selection again
-          $("#resultsSection").style.display = "none";
+          $("#resultsSection").classList.add("hidden");
           $("#fieldSelectionSection").classList.remove("hidden");
           $("#optionsSection").classList.remove("hidden");
           $("#log").textContent = "";
@@ -1377,12 +1399,12 @@ function init() {
           currentFile = null;
           fileName = null;
           $("#file-input").value = "";
-          $("#dropzone").style.display = "block";
+          $("#dropzone").classList.remove("hidden");
           $("#fileInfoCard").classList.add("hidden");
-          $("#optionsSection").style.display = "none";
+          $("#optionsSection").classList.add("hidden");
           $("#fieldSelectionSection").classList.add("hidden");
-          $("#resultsSection").style.display = "none";
-          $("#logSection").style.display = "none";
+          $("#resultsSection").classList.add("hidden");
+          $("#logSection").classList.add("hidden");
           $("#log").textContent = "";
           log("🛡️ Ready - Drop file to begin", "info");
         } catch (error) {
@@ -1405,11 +1427,7 @@ function init() {
       });
     }
 
-    // Show help for initially selected mode
-    const strictModeHelp = $("#strictModeHelp");
-    if (strictModeHelp) {
-      strictModeHelp.style.display = "block";
-    }
+    // Mode initialization complete - contextual mode is default
     
   } catch (error) {
     console.error("Initialization error:", error);

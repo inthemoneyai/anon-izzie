@@ -13,6 +13,10 @@ This project uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ---
 
+## [1.0.1] – 2025-09-06
+placeholder 
+---
+
 ## [1.0.0] – 2025-09-05
 🎉 First public release!  
 
