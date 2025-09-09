@@ -9,7 +9,16 @@ This project uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 - ✨ Planned: De-anonymizer add-on
 - ✨ Planned: Named-table-only mode
 - ✨ Planned: Header mapping UI
-- ✨ Planned: Context-menu action (“Anonymize before upload”)
+- ✨ Planned: Context-menu action ("Anonymize before upload")
+
+---
+
+## [1.0.2] – 2025-09-09
+🏪 Chrome Web Store prep mode  
+
+- Icons, screenshots, promo tile — all rebuilt to match Chrome’s picky rules  
+- Tidied up stray assets and references  
+- Anon-Izzie is now dressed up and ready to submit to the Chrome Web Store ✨
 
 ---
 
