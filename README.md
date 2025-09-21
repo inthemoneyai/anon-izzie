@@ -33,7 +33,7 @@ Perfect for anonymizing files before sharing, demoing, or running through AI too
 ## 🚀 How to Use
 
 1. **Install the extension**
-   - From the [Chrome Web Store](https://chrome.google.com/webstore/detail/anon-izzie/XXXX) *(link will go live after publish)*
+   - From the [Chrome Web Store](https://chromewebstore.google.com/detail/anon-izzie-%E2%80%94-excelcsv-pri/dijaecjpfipkbnohflbhnfohebnjgbpc)
    - Or load manually:
      - Go to `chrome://extensions/`
      - Enable **Developer Mode**
