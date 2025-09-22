@@ -3,31 +3,92 @@
 
 // PII detection patterns for equity/HR data
 const PII_PATTERNS = {
-  name: ["employee name", "full name", "name", "first name", "last name", "employee", "worker"],
-  empId: ["employee id", "person number", "emp id", "worker id", "person id", "employee number", "staff id"],
-  grantId: ["grant id", "grant #", "grant number", "award id", "award number", "award #", "option id", "option number"],
-  email: ["email", "e-mail", "email address", "work email", "corporate email"],
-  ssn: ["ssn", "social security number", "ss#", "ss #"],
-  address: ["address", "address line 1", "address1", "address line1", "street address", "home address"],
+  name: [
+    "employee name", "ee name", "worker name", "associate name", "full name",
+    "name", "first name", "last name", "employee", "worker", "associate",
+    "surname", "legal name"
+  ],
+  empId: [
+    "employee id", "person number", "emp id", "empid", "empl id", "ee id",
+    "eeid", "worker id", "associate id", "person id", "employee number",
+    "staff id", "worker number", "person key"
+  ],
+  grantId: [
+    "grant id", "grant #", "grant number", "award id", "award number",
+    "award #", "option id", "option number", "lot id", "transaction #"
+  ],
+  email: [
+    "email", "e-mail", "email address", "work email", "corporate email",
+    "login", "username"
+  ],
+  ssn: [
+    "ssn", "social security number", "ss#", "ss #", "ssn/tin"
+  ],
+  address: [
+    "address", "address line 1", "address1", "address line1",
+    "street address", "home address", "address line 2"
+  ],
   city: ["city", "municipality"],
   state: ["state", "province", "region"],
   zip: ["zip", "zip code", "postal", "postal code", "zipcode"],
-  phone: ["phone", "phone number", "telephone", "cell", "mobile", "work phone", "home phone"],
-  dob: ["dob", "date of birth", "birthdate", "birth date"],
-  compensation: ["salary", "compensation", "pay", "wage", "annual salary", "base salary", "total value", "total_value", "value", "amount", "dollar", "dollars"],
+  phone: [
+    "phone", "phone number", "telephone", "cell", "mobile", "work phone",
+    "home phone", "telephone number", "mobile number"
+  ],
+  dob: [
+    "dob", "date of birth", "birthdate", "birth date"
+  ],
+  compensation: [
+    "salary", "compensation", "pay", "wage", "annual salary", "base salary",
+    "total value", "total_value", "value", "amount", "dollar", "dollars",
+    "bonus", "stipend"
+  ],
   department: ["department", "dept", "division", "team", "unit"],
-  manager: ["manager", "supervisor", "reporting manager", "direct manager"],
-  bank: ["bank account", "account number", "routing", "iban", "swift"],
-  taxId: ["itin", "ein", "tax id", "taxid", "federal tax id", "state tax id"],
-  taxValue: ["withholding", "allowances", "fica", "ss", "medicare", "federal", "state withholding", "local withholding", "local tax", "state tax", "social security", "tax value", "taxable wages", "deductions", "state deductions"],
+  manager: [
+    "manager", "supervisor", "reporting manager", "direct manager"
+  ],
+  bank: [
+    "bank account", "account number", "routing", "iban", "swift",
+    "account #", "acct number"
+  ],
+  taxId: [
+    "itin", "ein", "tax id", "taxid", "tin", "federal tax id", "state tax id",
+    "national id"
+  ],
+  taxValue: [
+    "withholding", "allowances", "fica", "ss", "medicare", "federal",
+    "state withholding", "local withholding", "local tax", "state tax",
+    "social security", "tax value", "taxable wages", "deductions",
+    "state deductions", "federal income tax", "state income tax"
+  ],
   visa: ["visa", "work permit", "passport"],
-  demographics: ["gender", "ethnicity", "marital status", "marital_status"],
-  transaction: ["transaction id", "espp id", "purchase id", "vest id"],
-  grantDate: ["grant date", "grant_date", "award date", "award_date", "option grant date"],
-  vestDate: ["vest date", "vest_date", "vesting date", "vesting_date", "exercise date", "exercise_date"],
-  exercisePrice: ["exercise price", "exercise_price", "strike price", "strike_price", "option price"],
-  fmv: ["fmv", "fair market value", "fair_market_value", "market value", "market_value"],
-  shares: ["shares", "number of shares", "shares granted", "shares_vested", "shares_exercised"]
+  demographics: [
+    "gender", "ethnicity", "marital status", "marital_status"
+  ],
+  transaction: [
+    "transaction id", "espp id", "purchase id", "vest id"
+  ],
+  grantDate: [
+    "grant date", "grant_date", "award date", "award_date",
+    "option grant date", "granting date", "issue date", "board approval date"
+  ],
+  vestDate: [
+    "vest date", "vest_date", "vesting date", "vesting_date", "exercise date",
+    "exercise_date", "release date"
+  ],
+  exercisePrice: [
+    "exercise price", "exercise_price", "strike price", "strike_price",
+    "option price"
+  ],
+  fmv: [
+    "fmv", "fair market value", "fair_market_value", "market value", "market_value"
+  ],
+  shares: [
+    "shares", "number of shares", "shares granted", "shares_vested",
+    "shares_exercised", "shares outstanding", "shares released",
+    "quantity", "qty", "granted", "vested", "exercised", "outstanding",
+    "approved shares", "available shares", "unavailable shares"
+  ]
 };
 
 // Friendly names for detected field types
