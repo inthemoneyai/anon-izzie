@@ -41,7 +41,7 @@ const PII_PATTERNS = {
   compensation: [
     "salary", "compensation", "pay", "wage", "annual salary", "base salary",
     "total value", "total_value", "amount", "dollar", "dollars", "taxable wages",
-    "bonus", "stipend"
+    "bonus", "stipend", "exercise gain", "vesting gain", "taxable income"
   ],
   department: ["department", "dept", "division", "team", "unit"],
   manager: [
@@ -334,9 +334,9 @@ function maskSalary(value) {
 
 function csvEscape(value) {
   const str = (value == null) ? "" : String(value);
-  // Additional security: Remove any potential script injection
-  const sanitized = str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  return /[",\n\r]/.test(sanitized) ? `"${sanitized.replace(/"/g, '""')}"` : sanitized;
+  // Proper CSV escaping: double quotes and wrap if needed
+  // No HTML sanitization needed - this is CSV, not HTML
+  return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 }
 
 function analyzeFields(headerRow) {
@@ -736,7 +736,7 @@ function setupDragAndDrop() {
     return;
   }
   
-  console.log("Setting up drag and drop for element:", dropzone);
+  // Drag and drop setup
   
   ["dragenter", "dragover"].forEach(eventName => {
     dropzone.addEventListener(eventName, (e) => {
@@ -755,7 +755,6 @@ function setupDragAndDrop() {
   });
   
   dropzone.addEventListener("drop", (e) => {
-    console.log("Drop event triggered", e);
     try {
       if (!e.dataTransfer || !e.dataTransfer.files) {
         log("❌ No files detected in drop", "error");
@@ -1097,12 +1096,25 @@ async function anonymizeData() {
                 row[colIndex] = masked;
                 addToMap(originalValue, masked);
               } else {
-                // Contextual mode: use consistent fake values like taxValue
+                // Contextual mode: anonymize with consistent variance
                 const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
                 if (!isNaN(num)) {
-                  const rounded = Math.round(num / 100) * 100;
-                  row[colIndex] = rounded.toString();
-                  addToMap(originalValue, rounded.toString());
+                  const key = String(originalValue).toLowerCase();
+                  if (dict.has(key)) {
+                    row[colIndex] = dict.get(key);
+                  } else {
+                    // Create a consistent offset based on the original value
+                    // This ensures same salary always gets same fake salary
+                    const hash = key.split('').reduce((acc, char) => 
+                      acc + char.charCodeAt(0), 0);
+                    const variance = (hash % 20 - 10) / 100; // -10% to +10% variance
+                    const adjusted = num * (1 + variance);
+                    const rounded = Math.round(adjusted / 100) * 100;
+                    const anonymized = rounded.toString();
+                    dict.set(key, anonymized);
+                    row[colIndex] = anonymized;
+                  }
+                  addToMap(originalValue, row[colIndex]);
                 } else {
                   row[colIndex] = "***,***";
                   addToMap(originalValue, "***,***");
@@ -1138,10 +1150,20 @@ async function anonymizeData() {
               } else {
                 const num = parseFloat(originalValue.toString().replace(/[,$%]/g, ""));
                 if (!isNaN(num)) {
-                  // bucket to keep shape but hide exact
-                  const rounded = Math.round(num / 100) * 100;
-                  row[colIndex] = rounded.toString();
-                  addToMap(originalValue, rounded.toString());
+                  const key = String(originalValue).toLowerCase();
+                  if (dict.has(key)) {
+                    row[colIndex] = dict.get(key);
+                  } else {
+                    // Add small variance to tax values (3-8% like exercise price)
+                    const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const variance = (hash % 5 + 3) / 100; // 3% to 8% variance
+                    const adjusted = num * (1 + variance);
+                    const rounded = Math.round(adjusted / 10) * 10; // Round to nearest 10
+                    const anonymized = rounded.toString();
+                    dict.set(key, anonymized);
+                    row[colIndex] = anonymized;
+                  }
+                  addToMap(originalValue, row[colIndex]);
                 } else {
                   row[colIndex] = "***";
                   addToMap(originalValue, "***");
@@ -1188,12 +1210,23 @@ async function anonymizeData() {
                 row[colIndex] = "***.**"; // wipe
                 addToMap(originalValue, "***.**");
               } else {
-                // Round to nearest dollar for analysis
+                // Add variance to avoid unchanged values
                 const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
                 if (!isNaN(num)) {
-                  const rounded = Math.round(num);
-                  row[colIndex] = rounded.toFixed(2);
-                  addToMap(originalValue, rounded.toFixed(2));
+                  const key = String(originalValue).toLowerCase();
+                  if (dict.has(key)) {
+                    row[colIndex] = dict.get(key);
+                  } else {
+                    // Add 3-8% variance for exercise prices
+                    const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const variance = (hash % 5 + 3) / 100; // 3% to 8% variance
+                    const adjusted = num * (1 + variance);
+                    const rounded = Math.round(adjusted * 100) / 100; // Round to cents
+                    const anonymized = rounded.toFixed(2);
+                    dict.set(key, anonymized);
+                    row[colIndex] = anonymized;
+                  }
+                  addToMap(originalValue, row[colIndex]);
                 } else {
                   row[colIndex] = "***.**";
                   addToMap(originalValue, "***.**");
@@ -1205,12 +1238,23 @@ async function anonymizeData() {
                 row[colIndex] = "***.**"; // wipe
                 addToMap(originalValue, "***.**");
               } else {
-                // Round to nearest dollar for analysis
+                // Add small variance to avoid unchanged values
                 const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
                 if (!isNaN(num)) {
-                  const rounded = Math.round(num);
-                  row[colIndex] = rounded.toFixed(2);
-                  addToMap(originalValue, rounded.toFixed(2));
+                  const key = String(originalValue).toLowerCase();
+                  if (dict.has(key)) {
+                    row[colIndex] = dict.get(key);
+                  } else {
+                    // Add 5-15% variance based on value
+                    const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const variance = (hash % 10 + 5) / 100; // 5% to 15% variance
+                    const adjusted = num * (1 + variance);
+                    const rounded = Math.round(adjusted * 100) / 100; // Round to cents
+                    const anonymized = rounded.toFixed(2);
+                    dict.set(key, anonymized);
+                    row[colIndex] = anonymized;
+                  }
+                  addToMap(originalValue, row[colIndex]);
                 } else {
                   row[colIndex] = "***.**";
                   addToMap(originalValue, "***.**");
@@ -1222,12 +1266,23 @@ async function anonymizeData() {
                 row[colIndex] = "***"; // wipe
                 addToMap(originalValue, "***");
               } else {
-                // Round to nearest 100 for analysis
+                // Add variance to avoid unchanged round numbers
                 const num = parseFloat(originalValue.toString().replace(/[,$]/g, ""));
                 if (!isNaN(num)) {
-                  const rounded = Math.round(num / 100) * 100;
-                  row[colIndex] = rounded.toString();
-                  addToMap(originalValue, rounded.toString());
+                  const key = String(originalValue).toLowerCase();
+                  if (dict.has(key)) {
+                    row[colIndex] = dict.get(key);
+                  } else {
+                    // Add 10-20% variance for shares
+                    const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const variance = (hash % 10 + 10) / 100; // 10% to 20% variance
+                    const adjusted = num * (1 + variance);
+                    const rounded = Math.round(adjusted / 10) * 10; // Round to nearest 10
+                    const anonymized = rounded.toString();
+                    dict.set(key, anonymized);
+                    row[colIndex] = anonymized;
+                  }
+                  addToMap(originalValue, row[colIndex]);
                 } else {
                   row[colIndex] = "***";
                   addToMap(originalValue, "***");
@@ -1291,11 +1346,22 @@ async function anonymizeData() {
                     row[colIndex] = "***";
                     addToMap(originalValue, "***", "generic");
                   } else {
-                    // Round to nearest 10 for analysis
+                    // Add variance to generic numeric values too
                     const num = parseFloat(value);
-                    const rounded = Math.round(num / 10) * 10;
-                    row[colIndex] = rounded.toString();
-                    addToMap(originalValue, rounded.toString(), "generic");
+                    const key = String(originalValue).toLowerCase();
+                    if (dict.has(key)) {
+                      row[colIndex] = dict.get(key);
+                    } else {
+                      // Add 5-15% variance for generic numbers
+                      const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                      const variance = (hash % 10 + 5) / 100; // 5% to 15% variance
+                      const adjusted = num * (1 + variance);
+                      const rounded = Math.round(adjusted / 10) * 10;
+                      const anonymized = rounded.toString();
+                      dict.set(key, anonymized);
+                      row[colIndex] = anonymized;
+                    }
+                    addToMap(originalValue, row[colIndex], "generic");
                   }
                 } else if (value.includes("@") && value.includes(".")) {
                   // Looks like email - mask it

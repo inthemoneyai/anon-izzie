@@ -10,6 +10,12 @@
 // Use this to verify PII detection is working correctly!
 
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Get current directory (for ES modules)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Paste in your PII_PATTERNS object here
 const PII_PATTERNS = {
@@ -41,7 +47,7 @@ const PII_PATTERNS = {
   dob: ["dob", "date of birth", "birthdate", "birth date"],
   compensation: ["salary", "compensation", "pay", "wage", "annual salary", "base salary",
     "total value", "total_value", "amount", "dollar", "dollars", "taxable wages",
-    "bonus", "stipend"
+    "bonus", "stipend", "exercise gain", "vesting gain", "taxable income"
   ],
   department: ["department", "dept", "division", "team", "unit"],
   manager: ["manager", "supervisor", "reporting manager", "direct manager"],
@@ -78,33 +84,33 @@ const PII_PATTERNS = {
   ]
 };
 
-// Sample dummy values per category
+// Sample dummy values per category - mix of round and non-round numbers for better testing
 const categorySamples = {
-  name: ["Jane Doe", "John Smith"],
-  empId: ["12345", "67890"],
-  grantId: ["G123", "G456"],
-  email: ["user1@example.com", "user2@example.com"],
-  ssn: ["123-45-6789", "987-65-4321"],
-  address: ["123 Main St", "456 Elm St"],
-  city: ["New York", "Los Angeles"],
-  state: ["NY", "CA"],
-  zip: ["10001", "90001"],
-  phone: ["555-123-4567", "555-987-6543"],
-  dob: ["01/01/1980", "12/31/1999"],
-  compensation: ["100000", "250000"],
-  department: ["Finance", "HR"],
-  manager: ["Alice Boss", "Bob Supervisor"],
-  bank: ["123456789", "987654321"],
-  taxId: ["12-3456789", "98-7654321"],
-  taxValue: ["5000", "10000"],
-  visa: ["H1B", "L1"],
-  demographics: ["Female", "Male"],
-  transaction: ["T123", "T456"],
-  grantDate: ["01/15/2020", "02/20/2021"],
-  vestDate: ["01/15/2022", "02/20/2023"],
-  exercisePrice: ["10.00", "20.00"],
-  fmv: ["15.50", "22.75"],
-  shares: ["500", "2000"]
+  name: ["Jane Doe", "John Smith", "Alice Johnson", "Bob Williams"],
+  empId: ["12345", "67890", "54321", "98765"],
+  grantId: ["G123", "G456", "G789", "G012"],
+  email: ["user1@example.com", "user2@example.com", "user3@example.com", "user4@example.com"],
+  ssn: ["123-45-6789", "987-65-4321", "456-78-9012", "321-54-8765"],
+  address: ["123 Main St", "456 Elm St", "789 Oak Ave", "321 Pine Rd"],
+  city: ["New York", "Los Angeles", "Chicago", "Houston"],
+  state: ["NY", "CA", "IL", "TX"],
+  zip: ["10001", "90001", "60601", "77001"],
+  phone: ["555-123-4567", "555-987-6543", "555-456-7890", "555-321-0987"],
+  dob: ["01/01/1980", "12/31/1999", "06/15/1985", "03/22/1990"],
+  compensation: ["100000", "87543", "250000", "156789"], // Mix of round and non-round
+  department: ["Finance", "HR", "Engineering", "Sales"],
+  manager: ["Alice Boss", "Bob Supervisor", "Carol Director", "Dave Manager"],
+  bank: ["123456789", "987654321", "456789123", "789123456"],
+  taxId: ["12-3456789", "98-7654321", "45-6789012", "78-9012345"],
+  taxValue: ["5000", "4321", "10000", "7654"], // Mix of round and non-round
+  visa: ["H1B", "L1", "O1", "TN"],
+  demographics: ["Female", "Male", "Non-binary", "Prefer not to say"],
+  transaction: ["T123", "T456", "T789", "T012"],
+  grantDate: ["01/15/2020", "02/20/2021", "06/30/2022", "09/15/2023"],
+  vestDate: ["01/15/2022", "02/20/2023", "06/30/2024", "09/15/2025"],
+  exercisePrice: ["10.00", "12.34", "20.00", "18.75"], // Mix of round and non-round
+  fmv: ["15.00", "17.89", "25.00", "22.43"], // Mix of round and non-round
+  shares: ["1000", "1234", "5000", "3456"] // Mix of round and non-round
 };
 
 // Flatten all synonyms into headers
@@ -140,7 +146,9 @@ const rows = [0, 1, 2, 3].map(i =>
 let csv = headers.map(h => h.header).join(",") + "\n";
 csv += rows.map(r => r.join(",")).join("\n");
 
-// Write to file
-fs.writeFileSync("pii_test.csv", csv, "utf8");
+// Write to sample_data folder
+const outputPath = path.join(__dirname, "..", "sample_data", "pii_test.csv");
+fs.writeFileSync(outputPath, csv, "utf8");
 
-console.log("✅ Test file generated: pii_test.csv");
+console.log(`✅ Test file generated: sample_data/pii_test.csv`);
+console.log(`📁 Location: ${path.relative(process.cwd(), outputPath)}`);

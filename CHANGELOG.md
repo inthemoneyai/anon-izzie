@@ -13,6 +13,18 @@ This project uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ---
 
+## [1.1.2] – 2025-09-23
+### Fixed
+- **Critical**: Fixed contextual mode leaving round numbers unchanged (e.g., $100,000 → 100000)
+  - Now adds variance to: compensation, tax values, FMV, shares, exercise prices, and generic numeric fields
+- Removed flawed HTML sanitization regex (flagged by GitHub security scan) - CSV files don't need HTML escaping
+- Tax withholding values now properly anonymized with variance instead of just rounding
+
+### Added
+- New compensation patterns: "exercise gain", "vesting gain", "taxable income"
+
+---
+
 ## [1.1.1] – 2025-09-23
 ### Fixed
 - Shortened `manifest.json` description to meet Chrome Web Store 132-character limit
