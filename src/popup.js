@@ -40,7 +40,7 @@ const PII_PATTERNS = {
   ],
   compensation: [
     "salary", "compensation", "pay", "wage", "annual salary", "base salary",
-    "total value", "total_value", "value", "amount", "dollar", "dollars",
+    "total value", "total_value", "amount", "dollar", "dollars", "taxable wages",
     "bonus", "stipend"
   ],
   department: ["department", "dept", "division", "team", "unit"],
@@ -57,9 +57,11 @@ const PII_PATTERNS = {
   ],
   taxValue: [
     "withholding", "allowances", "fica", "ss", "medicare", "federal",
-    "state withholding", "local withholding", "local tax", "state tax",
-    "social security", "tax value", "taxable wages", "deductions",
-    "state deductions", "federal income tax", "state income tax"
+    "state withholding", "local withholding", "local tax", "local tax amount", "state tax", "state tax amount",
+    "social security", "social security tax", "social security tax amount", "tax value", "tax amount", "deductions",
+    "state deductions", "local deductions", "federal income tax", "state income tax", "local income tax",
+    "withholding amount", "federal withholding amount", "state withholding amount", "tax withholding amount", 
+    "withholding tax", "federal withholding tax", "state withholding tax", "withholding tax amount"
   ],
   visa: ["visa", "work permit", "passport"],
   demographics: [
@@ -299,20 +301,31 @@ function analyzeFields(headerRow) {
     };
     
     // Check each PII type with priority order
+    // More specific patterns should be checked before generic ones
     const priorityOrder = [
       'name', 'empId', 'grantId',
-      'ssn', 'taxId', 'taxValue', 'compensation', 'email', 'phone', 'address', 'bank',
+      'ssn', 'taxId', 'fmv', 'taxValue', 'email', 'phone', 'address', 'bank',
       'dob', 'visa', 'demographics', 'transaction', 'grantDate',
-      'vestDate', 'exercisePrice', 'fmv', 'shares', 'department',
-      'manager', 'city', 'state', 'zip'
+      'vestDate', 'exercisePrice', 'shares', 'department',
+      'manager', 'city', 'state', 'zip', 'compensation'  // compensation last due to generic patterns
     ];    
     
     priorityOrder.forEach(piiType => {
-      if (PII_PATTERNS[piiType] && isPIIField(header, piiType)) {
-        field.detectedTypes.push(piiType);
-        // Debug logging for "State Withholding" issue
-        if (header.toLowerCase().includes("state") && header.toLowerCase().includes("withholding")) {
-          console.log(`Field "${header}" detected as ${piiType}`);
+      if (PII_PATTERNS[piiType]) {
+        // Special handling for compensation patterns with tax context
+        if (piiType === 'compensation' && isPIIField(header, piiType)) {
+          const normalizedH = normalizeHeader(header);
+          // If header contains "amount" and also tax-related terms, skip compensation classification
+          if (normalizedH.includes("amount") && 
+              (normalizedH.includes("tax") || normalizedH.includes("withholding") || 
+               normalizedH.includes("deduction") || normalizedH.includes("fica") || 
+               normalizedH.includes("medicare") || normalizedH.includes("social security"))) {
+            // Skip - this will be caught by taxValue patterns
+            return;
+          }
+          field.detectedTypes.push(piiType);
+        } else if (isPIIField(header, piiType)) {
+          field.detectedTypes.push(piiType);
         }
       }
     });
@@ -411,6 +424,12 @@ function headerMatchesPattern(header, pattern) {
     if (h.includes("withholding") || h.includes("tax") || h.includes("deduction")) {
       return false;
     }
+  }
+
+  // Special handling for patterns with special characters (like "ss#")
+  if (p.includes("#")) {
+    // For patterns with #, do a direct substring match
+    return h.includes(p);
   }
 
   // Word boundary match (whole word/phrase)

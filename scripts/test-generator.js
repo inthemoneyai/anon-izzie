@@ -1,6 +1,13 @@
 // Generate a CSV with one column per PII_PATTERNS synonym
 // Each column gets realistic dummy values to test anonymizer logic
 // Run in terminal with: node scripts/test-generator.js
+//
+// This creates pii_test.csv with:
+// - Headers for every pattern variant (e.g., "ss#", "ssn", "social security number")
+// - 4 rows of test data with realistic values
+// - Edge cases in row 3 to test specific scenarios
+//
+// Use this to verify PII detection is working correctly!
 
 import fs from "fs";
 
@@ -33,7 +40,7 @@ const PII_PATTERNS = {
   ],
   dob: ["dob", "date of birth", "birthdate", "birth date"],
   compensation: ["salary", "compensation", "pay", "wage", "annual salary", "base salary",
-    "total value", "total_value", "value", "amount", "dollar", "dollars",
+    "total value", "total_value", "amount", "dollar", "dollars", "taxable wages",
     "bonus", "stipend"
   ],
   department: ["department", "dept", "division", "team", "unit"],
@@ -45,9 +52,10 @@ const PII_PATTERNS = {
     "national id"
   ],
   taxValue: ["withholding", "allowances", "fica", "ss", "medicare", "federal",
-    "state withholding", "local withholding", "local tax", "state tax",
-    "social security", "tax value", "taxable wages", "deductions",
-    "state deductions", "federal income tax", "state income tax"
+    "state withholding", "local withholding", "local tax", "local tax amount", "state tax", "state tax amount",
+    "social security", "social security tax", "social security tax amount", "tax value", "tax amount", "deductions",
+    "state deductions", "local deductions", "federal income tax", "state income tax", "local income tax",
+    "withholding amount", "federal withholding amount", "state withholding amount", "tax withholding amount"
   ],
   visa: ["visa", "work permit", "passport"],
   demographics: ["gender", "ethnicity", "marital status", "marital_status"],
@@ -104,10 +112,25 @@ const headers = Object.entries(PII_PATTERNS).flatMap(([cat, arr]) =>
 );
 
 // Generate rows of realistic dummy values
-const rows = [0, 1].map(i =>
+const rows = [0, 1, 2, 3].map(i =>
   headers.map(({ category, header }) => {
     const samples = categorySamples[category];
-    if (samples) return samples[i % samples.length];
+    if (samples) {
+      // Add some variations for testing edge cases
+      if (category === 'ssn' && i === 2) {
+        return "SSN: 456-78-9012"; // Test SSN with prefix
+      }
+      if (category === 'compensation' && header === 'amount' && i === 2) {
+        return "150000"; // Generic amount
+      }
+      if (category === 'taxValue' && header.includes('amount') && i === 2) {
+        return "12500"; // Tax amount
+      }
+      if (category === 'fmv' && i === 2) {
+        return "25.50"; // Market value
+      }
+      return samples[i % samples.length];
+    }
     return `TEST_${header.replace(/\s+/g, "_").toUpperCase()}`;
   })
 );
