@@ -55,7 +55,8 @@ const PII_PATTERNS = {
     "state withholding", "local withholding", "local tax", "local tax amount", "state tax", "state tax amount",
     "social security", "social security tax", "social security tax amount", "tax value", "tax amount", "deductions",
     "state deductions", "local deductions", "federal income tax", "state income tax", "local income tax",
-    "withholding amount", "federal withholding amount", "state withholding amount", "tax withholding amount"
+    "withholding amount", "federal withholding amount", "state withholding amount", "tax withholding amount",
+    "withholding tax", "federal withholding tax", "state withholding tax", "withholding tax amount"
   ],
   visa: ["visa", "work permit", "passport"],
   demographics: ["gender", "ethnicity", "marital status", "marital_status"],

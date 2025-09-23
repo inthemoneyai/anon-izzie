@@ -167,7 +167,7 @@ function suppressNoisyOverlaps(detectedTypes) {
 }
 
 // Token counters for consistent anonymization
-const TOKEN_COUNTERS = {
+let TOKEN_COUNTERS = {
   EMP: 0,    // Employee names
   EID: 0,    // Employee IDs
   GRT: 0,    // Grant/Award IDs
@@ -191,13 +191,23 @@ const TOKEN_COUNTERS = {
   GEN: 0     // Generic fields
 };
 
+// Reset token counters for each anonymization session
+function resetTokenCounters() {
+  Object.keys(TOKEN_COUNTERS).forEach(key => {
+    TOKEN_COUNTERS[key] = 0;
+  });
+}
+
 // Add regex matchers for rogue PII
 const REGEX_PATTERNS = {
   email: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   phone: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/,
   ssn: /\b\d{3}-\d{2}-\d{4}\b/,
   creditCard: /\b\d{4}[-\s]?(\d{4}[-\s]?){2}\d{4}\b/,
-  bank: /\b\d{8,17}\b/ // crude: 8–17 digits
+  bank: /\b\d{8,17}\b/, // crude: 8–17 digits
+  ipAddress: /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/,
+  // International phone formats
+  intlPhone: /\b(?:\+[1-9]\d{0,2}[-.\s]?)?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b/
 };
 
 // Global state
@@ -205,6 +215,7 @@ let currentFile = null;
 let fileName = null;
 let detectedFields = [];
 let fieldSelections = {};
+let globalTokenDictionaries = null; // For preserving relationships across sheets
 
 // Session-only state management (no persistent storage)
 function clearSession() {
@@ -212,6 +223,8 @@ function clearSession() {
   fileName = null;
   detectedFields = [];
   fieldSelections = {};
+  globalTokenDictionaries = null;
+  resetTokenCounters(); // Reset counters for consistent results
 }
 
 // DOM elements
@@ -242,11 +255,51 @@ function generateToken(prefix) {
 
 // Unused function removed - only getFriendlyLabelsSorted() is used
 
-// Date shifting utility
+// Common date formats to recognize
+const DATE_FORMATS = [
+  /^\d{4}-\d{2}-\d{2}$/,                    // YYYY-MM-DD
+  /^\d{2}\/\d{2}\/\d{4}$/,                  // MM/DD/YYYY or DD/MM/YYYY
+  /^\d{2}-\d{2}-\d{4}$/,                    // MM-DD-YYYY or DD-MM-YYYY
+  /^\d{1,2}\/\d{1,2}\/\d{4}$/,              // M/D/YYYY or D/M/YYYY
+  /^\d{4}\/\d{2}\/\d{2}$/,                  // YYYY/MM/DD
+  /^\d{2}\.\d{2}\.\d{4}$/,                  // DD.MM.YYYY (European)
+  /^\d{1,2}-[A-Za-z]{3}-\d{4}$/,            // DD-MMM-YYYY (e.g., 01-Jan-2024)
+  /^[A-Za-z]{3} \d{1,2}, \d{4}$/,           // MMM DD, YYYY (e.g., Jan 01, 2024)
+  /^\d{1,2} [A-Za-z]{3,} \d{4}$/            // DD Month YYYY (e.g., 1 January 2024)
+];
+
+// Check if a value looks like a date
+function isDateValue(value) {
+  if (!value) return false;
+  const str = String(value).trim();
+  return DATE_FORMATS.some(pattern => pattern.test(str));
+}
+
+// Date shifting utility with better format preservation
 function shiftDate(value, days = 90) {
   const d = new Date(value);
   if (isNaN(d)) return "1900-01-01";
   d.setDate(d.getDate() + days);
+  
+  // Try to preserve original format
+  const originalStr = String(value).trim();
+  
+  // YYYY-MM-DD format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(originalStr)) {
+    return d.toISOString().split("T")[0];
+  }
+  
+  // MM/DD/YYYY format (US)
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(originalStr)) {
+    return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+  }
+  
+  // DD.MM.YYYY format (European)
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(originalStr)) {
+    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+  }
+  
+  // Default to ISO format
   return d.toISOString().split("T")[0];
 }
 
@@ -755,6 +808,9 @@ async function anonymizeData() {
   try {
     log("🔄 Processing file...", "info");
     
+    // Reset token counters for consistent results
+    resetTokenCounters();
+    
     // Check if XLSX library is loaded
     if (typeof XLSX === 'undefined') {
       throw new Error("Excel processing library not loaded. Please refresh the extension.");
@@ -775,7 +831,14 @@ async function anonymizeData() {
         cellText: false
       });
     } catch (parseError) {
-      throw new Error(`Failed to parse file: ${parseError.message}. The file may be corrupted or in an unsupported format.`);
+      // Provide helpful error messages for common issues
+      if (parseError.message.includes('password')) {
+        throw new Error(`This file appears to be password-protected. Please remove the password protection and try again.`);
+      } else if (parseError.message.includes('CFB')) {
+        throw new Error(`This appears to be an older Excel format. Try saving it as .xlsx in Excel first.`);
+      } else {
+        throw new Error(`Failed to parse file: ${parseError.message}. The file may be corrupted or in an unsupported format.`);
+      }
     }
     
     if (!workbook || !workbook.SheetNames) {
@@ -786,9 +849,28 @@ async function anonymizeData() {
       throw new Error("No sheets found in the file");
     }
     
-    // Process first sheet for MVP
+    // Process first sheet for MVP (future: allow sheet selection)
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
+    
+    // If multiple sheets, inform user
+    if (workbook.SheetNames.length > 1) {
+      log(`📋 Processing sheet "${sheetName}" (file has ${workbook.SheetNames.length} sheets total)`, "info");
+      log(`💡 Currently processing first sheet only. Multiple sheet support coming soon!`, "info");
+    }
+    
+    // Check if worksheet has formulas
+    let hasFormulas = false;
+    for (let cell in worksheet) {
+      if (cell[0] === '!' || !worksheet[cell]) continue;
+      if (worksheet[cell].f) {
+        hasFormulas = true;
+        break;
+      }
+    }
+    if (hasFormulas) {
+      log(`📐 Note: Formulas will be converted to values in the anonymized file`, "info");
+    }
     
     if (!worksheet) {
       throw new Error(`Sheet "${sheetName}" could not be accessed`);
@@ -804,6 +886,9 @@ async function anonymizeData() {
         raw: false,
         dateNF: 'yyyy-mm-dd'
       });
+      
+      // Note: This converts formulas to values. Preserving formulas would require
+      // cell-by-cell processing and formula parsing, which is complex.
     } catch (dataError) {
       throw new Error(`Failed to extract data from sheet: ${dataError.message}`);
     }
@@ -846,19 +931,26 @@ async function anonymizeData() {
       }
       
       options = {
-        mode: modeElement.id
+        mode: modeElement.id,
+        includeMapping: $("#includeMapping")?.checked ?? true,
+        includeSummary: $("#includeSummary")?.checked ?? false
       };
     } catch (optionError) {
       throw new Error(`Configuration error: ${optionError.message}`);
     }
     
     // Column-level dictionaries for consistent tokenization
+    // This ensures the same value in a column always gets the same token (preserves relationships)
+    // For multi-sheet support, we could use globalTokenDictionaries instead
     const columnDictionaries = headerRow.map(() => new Map());
     
     log(`📊 Processing ${data.length - 1} rows, ${headerRow.length} columns...`, "info");
 
     let headerDetections = 0;
     let regexDetections = 0;
+    let processedRows = 0;
+    const totalRows = data.length - 1;
+    const updateInterval = Math.max(100, Math.floor(totalRows / 20)); // Update progress every 5% or 100 rows
 
     // Process each row with error handling
     for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
@@ -911,23 +1003,25 @@ async function anonymizeData() {
               return token;
             };
             
-            // Apply anonymization based on header patterns
-            if (isPIIField(header, "name")) {
+            // Apply anonymization based on detected types from analysis phase
+            const detectedType = field && field.detectedTypes.length > 0 ? field.detectedTypes[0] : null;
+            
+            if (detectedType === "name") {
               const token = getOrCreateToken("EMP", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "empId")) {
+            else if (detectedType === "empId") {
               const token = getOrCreateToken("EID", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "grantId")) {
+            else if (detectedType === "grantId") {
               const token = getOrCreateToken("GRT", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "email")) {
+            else if (detectedType === "email") {
               const key = String(originalValue).toLowerCase();
               if (dict.has(key)) {
                 row[colIndex] = dict.get(key);
@@ -938,12 +1032,12 @@ async function anonymizeData() {
               }
               addToMap(originalValue, row[colIndex]);
             }
-            else if (isPIIField(header, "ssn")) {
+            else if (detectedType === "ssn") {
               const masked = maskSSN(originalValue);
               row[colIndex] = masked;
               addToMap(originalValue, masked);
             }
-            else if (isPIIField(header, "address")) {
+            else if (detectedType === "address") {
               if (options.mode === "strictMode") {
                 const token = getOrCreateToken("ADR", originalValue);
                 row[colIndex] = token;
@@ -953,12 +1047,12 @@ async function anonymizeData() {
                 addToMap(originalValue, "Address");
               }
             }
-            else if (isPIIField(header, "city")) {
+            else if (detectedType === "city") {
               const token = getOrCreateToken("CTY", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "state")) {
+            else if (detectedType === "state") {
               const value = String(originalValue).trim().toUpperCase();
               if (options.mode === "contextualMode" && /^[A-Z]{2}$/.test(value)) {
                 row[colIndex] = value;
@@ -975,16 +1069,16 @@ async function anonymizeData() {
                 }
               }
             }
-            else if (isPIIField(header, "zip")) {
+            else if (detectedType === "zip") {
               row[colIndex] = "00000";
               addToMap(originalValue, "00000");
             }
-            else if (isPIIField(header, "phone")) {
+            else if (detectedType === "phone") {
               const masked = maskPhone(originalValue);
               row[colIndex] = masked;
               addToMap(originalValue, masked);
             }
-            else if (isPIIField(header, "dob")) {
+            else if (detectedType === "dob") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "1900-01-01"; // wipe
                 addToMap(originalValue, "1900-01-01");
@@ -994,7 +1088,7 @@ async function anonymizeData() {
                 addToMap(originalValue, shifted);
               }
             }
-            else if (isPIIField(header, "compensation")) {
+            else if (detectedType === "compensation") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "***,***"; // nuke exact comp
                 addToMap(originalValue, "***,***");
@@ -1015,29 +1109,29 @@ async function anonymizeData() {
                 }
               }
             }
-            else if (isPIIField(header, "department")) {
+            else if (detectedType === "department") {
               const token = getOrCreateToken("DEP", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "manager")) {
+            else if (detectedType === "manager") {
               const token = getOrCreateToken("MGR", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "bank")) {
+            else if (detectedType === "bank") {
               const token = getOrCreateToken("BANK", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
             // Tax IDs (EIN, ITIN, Tax ID)
-            else if (isPIIField(header, "taxId")) {
+            else if (detectedType === "taxId") {
               const token = getOrCreateToken("TAX", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
             // Tax values (withholding %, FICA, etc.)
-            else if (isPIIField(header, "taxValue")) {
+            else if (detectedType === "taxValue") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "***"; 
                 addToMap(originalValue, "***");
@@ -1054,22 +1148,22 @@ async function anonymizeData() {
                 }
               }
             }
-            else if (isPIIField(header, "visa")) {
+            else if (detectedType === "visa") {
               const token = getOrCreateToken("VISA", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "demographics")) {
+            else if (detectedType === "demographics") {
               const token = getOrCreateToken("DEMO", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "transaction")) {
+            else if (detectedType === "transaction") {
               const token = getOrCreateToken("TRANS", originalValue);
               row[colIndex] = token;
               addToMap(originalValue, token);
             }
-            else if (isPIIField(header, "grantDate")) {
+            else if (detectedType === "grantDate") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "1900-01-01"; // wipe
                 addToMap(originalValue, "1900-01-01");
@@ -1079,7 +1173,7 @@ async function anonymizeData() {
                 addToMap(originalValue, shifted);
               }
             }
-            else if (isPIIField(header, "vestDate")) {
+            else if (detectedType === "vestDate") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "1900-01-01"; // wipe
                 addToMap(originalValue, "1900-01-01");
@@ -1089,7 +1183,7 @@ async function anonymizeData() {
                 addToMap(originalValue, shifted);
               }
             }
-            else if (isPIIField(header, "exercisePrice")) {
+            else if (detectedType === "exercisePrice") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "***.**"; // wipe
                 addToMap(originalValue, "***.**");
@@ -1106,7 +1200,7 @@ async function anonymizeData() {
                 }
               }
             }
-            else if (isPIIField(header, "fmv")) {
+            else if (detectedType === "fmv") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "***.**"; // wipe
                 addToMap(originalValue, "***.**");
@@ -1123,7 +1217,7 @@ async function anonymizeData() {
                 }
               }
             }
-            else if (isPIIField(header, "shares")) {
+            else if (detectedType === "shares") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "***"; // wipe
                 addToMap(originalValue, "***");
@@ -1140,7 +1234,8 @@ async function anonymizeData() {
                 }
               }
             }
-            else if (typeof originalValue === "string") {
+            else if (detectedType === null && typeof originalValue === "string") {
+              // Only run regex detection if no type was detected from header
               try {
                 if (REGEX_PATTERNS.email.test(originalValue)) {
                   const masked = `user${String(++TOKEN_COUNTERS.EML).padStart(4, "0")}@example.invalid`;
@@ -1157,6 +1252,14 @@ async function anonymizeData() {
                 } else if (REGEX_PATTERNS.creditCard.test(originalValue)) {
                   row[colIndex] = "****-****-****-1234";
                   addToMap(originalValue, row[colIndex], "regex");
+                } else if (REGEX_PATTERNS.ipAddress.test(originalValue)) {
+                  row[colIndex] = "192.168.*.***";
+                  addToMap(originalValue, row[colIndex], "regex");
+                } else if (REGEX_PATTERNS.intlPhone.test(originalValue) && !REGEX_PATTERNS.phone.test(originalValue)) {
+                  // International phone that's not US format
+                  const masked = originalValue.replace(/\d/g, '*').replace(/\*{3,}/g, '***');
+                  row[colIndex] = masked;
+                  addToMap(originalValue, masked, "regex");
                 } else if (REGEX_PATTERNS.bank.test(originalValue)) {
                   const normalizedHeader = normalizeHeader(header);
                   if (
@@ -1199,7 +1302,7 @@ async function anonymizeData() {
                   const masked = `user${String(++TOKEN_COUNTERS.EML).padStart(4, "0")}@example.invalid`;
                   row[colIndex] = masked;
                   addToMap(originalValue, masked, "generic");
-                } else if (/^\d{4}-\d{2}-\d{2}/.test(value) || /^\d{2}\/\d{2}\/\d{4}/.test(value)) {
+                } else if (isDateValue(value)) {
                   // Looks like date - shift it
                   if (options.mode === "strictMode") {
                     row[colIndex] = "1900-01-01";
@@ -1230,6 +1333,13 @@ async function anonymizeData() {
             continue;
           }
         }
+        
+        // Update progress for large files
+        processedRows++;
+        if (processedRows % updateInterval === 0) {
+          const percentComplete = Math.floor((processedRows / totalRows) * 100);
+          log(`⏳ Progress: ${percentComplete}% (${processedRows}/${totalRows} rows)`, "info");
+        }
       } catch (rowError) {
         log(`⚠️ Error processing row ${rowIndex + 1}: ${rowError.message}`, "info");
         continue;
@@ -1237,6 +1347,33 @@ async function anonymizeData() {
     }
 
     log(`🔒 Anonymized ${headerDetections + regexDetections} sensitive fields`, "success");
+    log(`🔗 Relationships preserved: same values get same tokens within columns`, "info");
+    
+    // Create enhanced anonymization summary
+    const columnSummary = detectedFields
+      .filter(field => fieldSelections[`field_${field.index}`])
+      .map(field => ({
+        columnName: field.name,
+        columnIndex: field.index + 1,
+        detectedTypes: field.detectedTypes.map(type => FRIENDLY_NAMES[type] || type),
+        wasAnonymized: true
+      }));
+    
+    const anonymizationSummary = {
+      version: chrome.runtime.getManifest().version, // Pull version from manifest
+      totalRows: data.length - 1,
+      totalColumns: headerRow.length,
+      fieldsAnonymized: headerDetections + regexDetections,
+      byDetectionType: {
+        header: headerDetections,
+        regex: regexDetections
+      },
+      mode: options.mode,
+      timestamp: new Date().toISOString(),
+      fileName: fileName,
+      columnsProcessed: columnSummary.length,
+      columnDetails: columnSummary
+    };
     
     // Update results summary in UI
     const summaryText = `📊 ${headerDetections} header, 🔎 ${regexDetections} regex → Total ${headerDetections + regexDetections} fields scrubbed`;
@@ -1274,7 +1411,7 @@ async function anonymizeData() {
     }
     
     // Generate filenames with error handling
-    let baseName, anonymizedFileName, mappingFileName;
+    let baseName, anonymizedFileName, mappingFileName, summaryFileName;
     try {
       baseName = fileName.replace(/(\.xlsx|\.xls|\.csv)?$/i, "");
       if (!baseName || baseName.trim() === "") {
@@ -1282,9 +1419,11 @@ async function anonymizeData() {
       }
       anonymizedFileName = `${baseName}_anonymized.xlsx`;
       mappingFileName = `${baseName}_anonymization_map.csv`;
+      summaryFileName = `${baseName}_summary.json`;
     } catch (filenameError) {
       anonymizedFileName = "anonymized_data.xlsx";
       mappingFileName = "anonymization_map.csv";
+      summaryFileName = "anonymization_summary.json";
       log("⚠️ Using default filenames due to filename error", "info");
     }
     
@@ -1298,17 +1437,40 @@ async function anonymizeData() {
       throw new Error(`Failed to download anonymized file: ${downloadError.message}`);
     }
     
-    try {
-      downloadFile(mappingFileName, new Blob([mappingCsv], { 
-        type: "text/csv;charset=utf-8" 
-      }));
-      log(`📥 Downloaded: ${mappingFileName}`, "success");
-    } catch (downloadError) {
-      log(`⚠️ Failed to download mapping file: ${downloadError.message}`, "error");
-      // Don't throw here - main file was successful
+    // Download mapping CSV if requested
+    if (options.includeMapping) {
+      try {
+        downloadFile(mappingFileName, new Blob([mappingCsv], { 
+          type: "text/csv;charset=utf-8" 
+        }));
+        log(`📥 Downloaded: ${mappingFileName}`, "success");
+      } catch (downloadError) {
+        log(`⚠️ Failed to download mapping file: ${downloadError.message}`, "error");
+        // Don't throw here - main file was successful
+      }
     }
     
-    log("🎉 Success! Files downloaded", "success");
+    // Download summary JSON if requested
+    if (options.includeSummary) {
+      try {
+        const summaryJson = JSON.stringify(anonymizationSummary, null, 2);
+        downloadFile(summaryFileName, new Blob([summaryJson], { 
+          type: "application/json;charset=utf-8" 
+        }));
+        log(`📥 Downloaded: ${summaryFileName}`, "success");
+      } catch (summaryError) {
+        log(`⚠️ Failed to download summary file: ${summaryError.message}`, "error");
+        // Don't throw here - main file was successful
+      }
+    }
+    
+    // Show appropriate success message based on what was downloaded
+    const filesDownloaded = [];
+    filesDownloaded.push("anonymized data");
+    if (options.includeMapping) filesDownloaded.push("mapping");
+    if (options.includeSummary) filesDownloaded.push("summary");
+    
+    log(`🎉 Success! Downloaded: ${filesDownloaded.join(", ")}`, "success");
     
   } catch (error) {
     log(`❌ Error: ${error.message}`, "error");
@@ -1506,6 +1668,30 @@ function init() {
         });
       });
     }
+    
+    // Keyboard shortcuts
+    document.addEventListener("keydown", (e) => {
+      // Ctrl+A or Cmd+A to select all fields when field selection is visible
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        const fieldSelectionSection = $("#fieldSelectionSection");
+        if (fieldSelectionSection && !fieldSelectionSection.classList.contains("hidden")) {
+          e.preventDefault(); // Prevent browser's select all
+          
+          // Toggle all fields
+          const selectAllMaster = $("#selectAllMaster");
+          if (selectAllMaster) {
+            const currentState = selectAllMaster.checked;
+            selectAllMaster.checked = !currentState;
+            selectAllMaster.dispatchEvent(new Event('change'));
+          }
+        }
+      }
+      
+      // Escape key to close the extension (like clicking away)
+      if (e.key === 'Escape') {
+        window.close();
+      }
+    });
 
     // Mode initialization complete - contextual mode is default
     

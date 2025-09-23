@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Anon-Izzie — Excel/CSV Privacy Shield",
   "short_name": "Anon-Izzie",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Scrub payroll & equity spreadsheets in seconds. 100% local, no uploads. Protect PII before you share or feed it to AI.",
   "offline_enabled": true,
   "action": {

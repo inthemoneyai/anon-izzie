@@ -13,6 +13,32 @@ This project uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ---
 
+## [1.0.3] – 2025-09-23
+🎯 Quality of Life Improvements
+
+### Added
+- **Better Date Recognition**: Now detects and preserves format for 9+ date patterns (YYYY-MM-DD, MM/DD/YYYY, DD.MM.YYYY, DD-MMM-YYYY, etc.)
+- **Keyboard Shortcuts**: Press `Ctrl+A` (or `Cmd+A` on Mac) to toggle all field selections. Press `Escape` to close the extension
+- **Progress Tracking**: Shows completion percentage for large files (updates every 5% or 100 rows)
+- **Enhanced PII Detection**: Now catches IP addresses and international phone numbers via regex
+- **Formula Awareness**: Warns users when Excel formulas will be converted to values
+- **Optional Downloads**: New checkboxes to control which files to download (anonymization map and/or summary report)
+- **Enhanced Summary Report**: JSON file includes column-level PII detection details and version info for audit trails
+- **Relationship Preservation**: Same values always get same tokens within columns (was already there, now documented!)
+
+### Fixed
+- Tax-related "amount" fields now correctly categorized as taxValue instead of compensation
+- Fair market value variants properly detected as FMV instead of compensation
+- "ss#" pattern now correctly detected as SSN field
+- Token counters reset between sessions for consistent results
+
+### Technical
+- Switched from re-checking patterns to using detected types during anonymization
+- Added support for detecting multiple sheet workbooks (processing still limited to first sheet)
+- Better error messages for password-protected and old Excel formats
+
+---
+
 ## [1.0.2] – 2025-09-09
 🏪 Chrome Web Store prep mode  
 

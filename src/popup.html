@@ -60,7 +60,7 @@
                 <!-- Master Select All checkbox -->
                 <div class="flex items-center p-2 bg-blue-50 border border-blue-200 rounded mb-2 text-xs">
                     <input type="checkbox" id="selectAllMaster" class="w-3 h-3 accent-blue-600 mr-2">
-                    <label for="selectAllMaster" class="font-medium text-blue-800 cursor-pointer">Select All Fields</label>
+                    <label for="selectAllMaster" class="font-medium text-blue-800 cursor-pointer">Select All Fields <span class="text-blue-600 font-normal">(Ctrl+A)</span></label>
                 </div>
                 
                 <div id="fieldList" class="space-y-1 max-h-32 overflow-y-auto text-xs">
@@ -81,6 +81,19 @@
                     <label class="flex items-center mb-2 cursor-pointer text-xs text-gray-700" title="Completely removes all sensitive data. Use for demos, sharing with external parties, or when maximum privacy is required.">
                       <input type="radio" name="mode" id="strictMode" class="mr-2 w-3 h-3 accent-blue-600">
                       Strict Mode 🔒 (wipe everything)
+                    </label>
+                </div>
+                
+                <!-- Download Options -->
+                <div class="mb-3 border-t pt-3">
+                    <h4 class="text-xs font-medium mb-2 text-gray-700">📥 Download Options:</h4>
+                    <label class="flex items-center mb-1 cursor-pointer text-xs text-gray-600" title="Creates a CSV mapping original values to anonymized values">
+                        <input type="checkbox" id="includeMapping" class="w-3 h-3 accent-blue-600 mr-2" checked>
+                        <span>Include anonymization map (CSV)</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer text-xs text-gray-600" title="Creates a JSON report with field detection details">
+                        <input type="checkbox" id="includeSummary" class="w-3 h-3 accent-blue-600 mr-2">
+                        <span>Include summary report (JSON)</span>
                     </label>
                 </div>
                   
