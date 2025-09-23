@@ -13,6 +13,12 @@ This project uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ---
 
+## [1.1.1] – 2025-09-23
+### Fixed
+- Shortened `manifest.json` description to meet Chrome Web Store 132-character limit
+
+---
+
 ## [1.1.0] – 2025-09-23
 🎯 Quality of Life & Stronger PII Redaction  
 
