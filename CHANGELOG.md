@@ -13,6 +13,12 @@ This project uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ---
 
+## [1.1.3] – 2026-02-16
+### Added
+- User-requested fields: hire date, middle name, middle initial, drivers license, health insurance ID and group number, relationship, dependents
+
+---
+
 ## [1.1.2] – 2025-09-23
 ### Fixed
 - **Critical**: Fixed contextual mode leaving round numbers unchanged (e.g., $100,000 → 100000)

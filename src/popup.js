@@ -6,12 +6,12 @@ const PII_PATTERNS = {
   name: [
     "employee name", "ee name", "worker name", "associate name", "full name",
     "name", "first name", "last name", "employee", "worker", "associate",
-    "surname", "legal name"
+    "surname", "legal name", "middle initial", "middle name"
   ],
   empId: [
     "employee id", "person number", "emp id", "empid", "empl id", "ee id",
     "eeid", "worker id", "associate id", "person id", "employee number",
-    "staff id", "worker number", "person key"
+    "staff id", "worker number", "person key", "drivers license", "health insurance id", "group number"
   ],
   grantId: [
     "grant id", "grant #", "grant number", "award id", "award number",
@@ -65,10 +65,13 @@ const PII_PATTERNS = {
   ],
   visa: ["visa", "work permit", "passport"],
   demographics: [
-    "gender", "ethnicity", "marital status", "marital_status"
+    "gender", "ethnicity", "marital status", "marital_status", "relationship", "dependents"
   ],
   transaction: [
     "transaction id", "espp id", "purchase id", "vest id"
+  ],
+  hireDate: [
+    "hire date", "employment date", "start date"
   ],
   grantDate: [
     "grant date", "grant_date", "award date", "award_date",
@@ -115,6 +118,7 @@ const FRIENDLY_NAMES = {
   visa: "Visa/Work Permit",
   demographics: "Demographics",
   transaction: "Transaction ID",
+  hireDate: "Hire Date",
   grantDate: "Grant Date",
   vestDate: "Vesting Date",
   exercisePrice: "Exercise Price",
@@ -129,7 +133,7 @@ const DISPLAY_PRIORITY = [
   "email", "phone", "dob",
   "address", "city", "state", "zip",
   "bank", "visa", "demographics",
-  "transaction", "grantDate", "vestDate",
+  "transaction", "hireDate", "grantDate", "vestDate",
   "exercisePrice", "fmv", "shares",
   "department", "manager"
 ];
@@ -183,6 +187,7 @@ let TOKEN_COUNTERS = {
   VISA: 0,   // Visas
   DEMO: 0,   // Demographics
   TRANS: 0,  // Transactions
+  HIRE: 0,  // Hire dates
   GRANT: 0,  // Grant dates
   VEST: 0,   // Vesting dates
   PRICE: 0,  // Exercise prices
@@ -358,7 +363,7 @@ function analyzeFields(headerRow) {
     const priorityOrder = [
       'name', 'empId', 'grantId',
       'ssn', 'taxId', 'fmv', 'taxValue', 'email', 'phone', 'address', 'bank',
-      'dob', 'visa', 'demographics', 'transaction', 'grantDate',
+      'dob', 'visa', 'demographics', 'transaction', 'hireDate', 'grantDate',
       'vestDate', 'exercisePrice', 'shares', 'department',
       'manager', 'city', 'state', 'zip', 'compensation'  // compensation last due to generic patterns
     ];    
@@ -1186,6 +1191,16 @@ async function anonymizeData() {
               addToMap(originalValue, token);
             }
             else if (detectedType === "grantDate") {
+              if (options.mode === "strictMode") {
+                row[colIndex] = "1900-01-01"; // wipe
+                addToMap(originalValue, "1900-01-01");
+              } else {
+                const shifted = shiftDate(originalValue, 30); // shift by 30 days
+                row[colIndex] = shifted;
+                addToMap(originalValue, shifted);
+              }
+            }
+            else if (detectedType === "hireDate") {
               if (options.mode === "strictMode") {
                 row[colIndex] = "1900-01-01"; // wipe
                 addToMap(originalValue, "1900-01-01");
